@@ -18,9 +18,9 @@ More refer to the release notes." </string>
     <string name="release_note_tile_current">Current version of MSDK: %s</string>
     <string name="release_note_loading">loading…</string>
 
-    <string name="app_name_all">MSDK ALL</string>
-    <string name="app_name_aircraft">MSDK Aircraft</string>
-    <string name="app_name_handheld">MSDK Handheld</string>
+    <string name="app_name_all">andoird-sdk-v5-</string>
+    <string name="app_name_aircraft">andoird-sdk-v5-</string>
+    <string name="app_name_handheld">andoird-sdk-v5-</string>
 
     <string name="item_key_value_title">Key/Value</string>
     <string name="item_key_value_description">Demonstrate how to use the Key/Value function</string>
