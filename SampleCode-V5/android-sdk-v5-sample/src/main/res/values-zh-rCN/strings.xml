@@ -485,4 +485,5 @@
     <string name="item_app_silently_upgrade_description">演示如何使用APP静默升级相关功能</string>
     <string name="btn_silently_upgrade_package">设置静默升级的APP包名</string>
     <string name="btn_install_test_app">安装测试APP</string>
+    <string name="download_files">download file</string>
 </resources>

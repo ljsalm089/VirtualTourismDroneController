@@ -10,7 +10,7 @@ import android.content.Context
  *
  * Copyright (c) 2022, DJI All Rights Reserved.
  */
-class DlJIAircraftApp : DJIApplication() {
+class DJIAircraftAppl : DJIApplication() {
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
