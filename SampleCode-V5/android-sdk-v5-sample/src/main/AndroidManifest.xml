@@ -30,7 +30,12 @@
         android:label="@string/app_name_aircraft"
         android:requestLegacyExternalStorage="true"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        android:theme="@style/Theme.AppCompat.DayNight">
+<!--        @android:style/Theme.NoTitleBar.Fullscreen
+Above is the theme it is using before but I changed it to fix an error
+that would cause my new activity to crash before because it wasnt using
+App.Compat theme or something - 5.3 Tuesday 10th -->
+
         <activity
             android:name=".FragmentTestActivity"
             android:exported="false" />
