@@ -189,9 +189,11 @@
         android:layout_marginLeft="2dp"
         android:background="@color/light_gray2"
         app:layout_constraintBottom_toBottomOf="@+id/view_info_panel"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintLeft_toRightOf="@+id/view_info_panel"
         app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/view_info_panel" />
+        app:layout_constraintTop_toTopOf="@+id/view_info_panel"
+        app:layout_constraintVertical_bias="0.0" />
 
     <TextView
         android:id="@+id/text_view_news_title"
@@ -206,6 +208,7 @@
         app:layout_constraintTop_toTopOf="@+id/msg_panel" />
 
     <dji.sampleV5.aircraft.views.VersionInfoView
+        android:id="@+id/versionInfoView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
@@ -340,5 +343,15 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         tools:ignore="SpUsage" />
+
+    <Button
+        android:id="@+id/btn_live_stream_test"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="LiveStream Test"
+        app:layout_constraintBottom_toTopOf="@+id/panel_icon_msg"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/view_info_panel"
+        app:layout_constraintTop_toBottomOf="@+id/text_view_news_title" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

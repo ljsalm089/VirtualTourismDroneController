@@ -8,9 +8,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.widget.Button
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
 import dji.sampleV5.aircraft.databinding.ActivityMainBinding
 import dji.sampleV5.aircraft.models.BaseMainActivityVm
 import dji.sampleV5.aircraft.models.MSDKInfoVm
@@ -87,7 +89,25 @@ abstract class DJIMainActivity : AppCompatActivity() {
         initMSDKInfoView()
         observeSDKManager()
         checkPermissionAndRequest()
+
+        //my code
+        btnLiveStreamSettingUp()
+
+    } //end of onCreate
+
+    fun btnLiveStreamSettingUp() {
+        binding.btnLiveStreamTest.setOnClickListener() {
+            val intent = Intent(this, FragmentTestActivity::class.java)
+            startActivity(intent)
+        }
     }
+
+//    private fun openFragment(fragment: Fragment) {
+//        val transaction = supportFragmentManager.beginTransaction()
+//        transaction.replace(R.id.fragmentContainer, fragment) // Replace with the container ID
+//        transaction.addToBackStack(null) // Optional: Adds this transaction to the back stack
+//        transaction.commit()
+//    }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
