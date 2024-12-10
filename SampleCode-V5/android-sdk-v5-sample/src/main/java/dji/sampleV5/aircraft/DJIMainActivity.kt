@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.Button
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -91,23 +92,23 @@ abstract class DJIMainActivity : AppCompatActivity() {
         checkPermissionAndRequest()
 
         //my code
-        btnLiveStreamSettingUp()
+        btnLiveStreamSetup()
+        btnGetByteStreamSetup()
 
     } //end of onCreate
 
-    fun btnLiveStreamSettingUp() {
+    fun btnLiveStreamSetup() {
         binding.btnLiveStreamTest.setOnClickListener() {
             val intent = Intent(this, FragmentTestActivity::class.java)
             startActivity(intent)
         }
     }
 
-//    private fun openFragment(fragment: Fragment) {
-//        val transaction = supportFragmentManager.beginTransaction()
-//        transaction.replace(R.id.fragmentContainer, fragment) // Replace with the container ID
-//        transaction.addToBackStack(null) // Optional: Adds this transaction to the back stack
-//        transaction.commit()
-//    }
+    fun btnGetByteStreamSetup() {
+        binding.btnGetByteStream.setOnClickListener( {
+            Toast.makeText(this, "This will hopefully pass byte stream at some point? or do something else?", Toast.LENGTH_LONG).show()
+        })
+    }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
