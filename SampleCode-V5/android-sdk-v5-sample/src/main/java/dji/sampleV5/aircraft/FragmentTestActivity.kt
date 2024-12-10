@@ -1,8 +1,6 @@
 package dji.sampleV5.aircraft
 
 import android.os.Bundle
-import android.widget.Button
-//import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -23,10 +21,5 @@ class FragmentTestActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, liveFragment)
             .commit()
-
-        val btnReturn = findViewById<Button>(R.id.btnReturn)
-        btnReturn.setOnClickListener() {
-            finish()
-        }
     }
 }
