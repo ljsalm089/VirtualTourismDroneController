@@ -8,12 +8,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
 import dji.sampleV5.aircraft.databinding.ActivityMainBinding
 import dji.sampleV5.aircraft.models.BaseMainActivityVm
 import dji.sampleV5.aircraft.models.MSDKInfoVm
@@ -94,6 +92,7 @@ abstract class DJIMainActivity : AppCompatActivity() {
         //my code
         btnLiveStreamSetup()
         btnGetByteStreamSetup()
+        btnVirtualStickFragment()
 
     } //end of onCreate
 
@@ -106,8 +105,18 @@ abstract class DJIMainActivity : AppCompatActivity() {
 
     fun btnGetByteStreamSetup() {
         binding.btnGetByteStream.setOnClickListener( {
-            Toast.makeText(this, "This will hopefully pass byte stream at some point? or do something else?", Toast.LENGTH_LONG).show()
+//            Toast.makeText(this, "This will hopefully pass byte stream at some point? or do something else?", Toast.LENGTH_LONG).show()
+//            addAvailableCameraUpdatedListener()  //try find the package to import?
+            val intent = Intent(this, LiveStreamActivity::class.java)
+            startActivity(intent)
         })
+    }
+
+    fun btnVirtualStickFragment() {
+        binding.btnVirtualStickFragment.setOnClickListener() {
+            val intent = Intent(this, VirtualStickActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
