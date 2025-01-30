@@ -112,6 +112,9 @@ App.Compat theme or something - 5.3 Tuesday 10th -->
             android:exported="false"
             android:screenOrientation="landscape"
             android:theme="@style/full_screen_theme" />
+        <activity android:name=".CameraStreamActivity"
+            android:exported="false"
+            android:theme="@style/full_screen_theme"/>
     </application>
 
 </manifest>

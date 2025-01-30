@@ -348,7 +348,7 @@
         android:id="@+id/btn_live_stream_test"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="LiveStream Test"
+        android:text="LiveFragment (Updated)"
         app:layout_constraintBottom_toTopOf="@+id/btn_virtual_stick_fragment"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/view_info_panel"
