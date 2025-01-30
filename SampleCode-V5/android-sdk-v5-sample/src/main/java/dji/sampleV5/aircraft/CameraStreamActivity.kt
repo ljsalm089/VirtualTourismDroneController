@@ -1,4 +1,6 @@
 package dji.sampleV5.aircraft
 
-class CameraStreamActivity {
+import androidx.appcompat.app.AppCompatActivity
+
+class CameraStreamActivity : AppCompatActivity() {
 }
