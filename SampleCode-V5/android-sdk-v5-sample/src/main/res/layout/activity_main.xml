@@ -379,4 +379,14 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_live_stream_test"
         app:layout_constraintVertical_bias="0.984" />
 
+    <Button
+        android:id="@+id/btnCameraStreamActivity"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CameraStreamActivity"
+        app:layout_constraintBottom_toTopOf="@+id/panel_icon_msg"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/view_info_panel"
+        app:layout_constraintTop_toTopOf="@+id/versionInfoView" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -93,6 +93,7 @@ abstract class DJIMainActivity : AppCompatActivity() {
         btnLiveStreamSetup()
         btnGetByteStreamSetup()
         btnVirtualStickFragment()
+        btnCameraStreamActivitySetup()
 
     } //end of onCreate
 
@@ -105,8 +106,6 @@ abstract class DJIMainActivity : AppCompatActivity() {
 
     fun btnGetByteStreamSetup() {
         binding.btnGetByteStream.setOnClickListener( {
-//            Toast.makeText(this, "This will hopefully pass byte stream at some point? or do something else?", Toast.LENGTH_LONG).show()
-//            addAvailableCameraUpdatedListener()  //try find the package to import?
             val intent = Intent(this, LiveStreamActivity::class.java)
             startActivity(intent)
         })
@@ -115,6 +114,13 @@ abstract class DJIMainActivity : AppCompatActivity() {
     fun btnVirtualStickFragment() {
         binding.btnVirtualStickFragment.setOnClickListener() {
             val intent = Intent(this, VirtualStickActivity::class.java)
+            startActivity(intent)
+        }
+    }
+
+    fun btnCameraStreamActivitySetup() {
+        binding.btnCameraStreamActivity.setOnClickListener() {
+            val intent = Intent(this, CameraStreamActivity::class.java)
             startActivity(intent)
         }
     }
