@@ -86,24 +86,24 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         runOnUiThread { // is this nessessary or AI bullshit?
             surface?.let { surface ->
                 try {
-                    Log.d("CameraStream", "Made it to the try loop of the drawFrameOnSurface")
+//                    Log.d("CameraStream", "Made it to the try loop of the drawFrameOnSurface")
 //                    Log.d("CameraStream", "Frame data: ${frameData.joinToString("") { "%02x".format(it) }}") // want to see the ByteArray
                     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                    Log.d("CameraStream", "bitmap val set up")
+//                    Log.d("CameraStream", "bitmap val set up")
 //                    val buffer = ByteBuffer.wrap(frameData, offset, width * height * 4) // trying old way and commenting out the first way - post test (this one makes us error earlier with null error) - this one is baad dont use!!!!
                     val buffer = ByteBuffer.wrap(frameData, offset, frameData.size) // again how does this offset work? although it seems like they want the offset seperatly so maybe it is right?
-                    Log.d("CameraStream", "buffer val created")
+//                    Log.d("CameraStream", "buffer val created")
                     bitmap.copyPixelsFromBuffer(buffer) //currently getting an error here - Buffer not large enough for pixels - offset problem?
-                    Log.d("CameraStream", "bitmap copied from buffer")
+//                    Log.d("CameraStream", "bitmap copied from buffer")
 
                     val canvas = surface.lockCanvas(null) //what is the canvas for and what does this do  - we lock the canvas to be able to draw on it and later unlock it
-                    Log.d("CameraStream", "canva setup")
+//                    Log.d("CameraStream", "canva setup")
                     canvas.drawBitmap(bitmap, 0f, 0f, null)
-                    Log.d("CameraStream", "bitmap drawn on canvas")
+//                    Log.d("CameraStream", "bitmap drawn on canvas")
                     surface.unlockCanvasAndPost(canvas)
-                    Log.d("CameraStream", "canvas unlocked")
+//                    Log.d("CameraStream", "canvas unlocked")
                     bitmap.recycle() //free the memory
-                    Log.d("CameraStream", "bitmap freed")
+//                    Log.d("CameraStream", "bitmap freed")
                 } catch (e: Exception) {
                     Log.e("CameraStream", "Failed to draw frame: ${e.message}")
                 }
