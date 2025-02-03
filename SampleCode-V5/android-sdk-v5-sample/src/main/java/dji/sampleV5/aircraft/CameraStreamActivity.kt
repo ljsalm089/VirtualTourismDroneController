@@ -29,24 +29,27 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             height: Int,
             format: ICameraStreamManager.FrameFormat
         ) {
+            Log.d("CameraStream", "inside the framelistener setup val")
 //            modifyGreenChannel(frameData, offset, width, height) // we will uncomment later when we know the stream works
 
             // draws the frame into the SurfaceView
-//            drawFrameOnSurface(frameData, offset, width, height) //will uncomment when written the method
+            drawFrameOnSurface(frameData, offset, width, height) //will uncomment when written the method
         }
-
     }
 
     override fun onCreate(savedInstanceState: Bundle?) { //
+        Log.d("CameraStream", "On Create started for CameraStreamActivity")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera_stream)
         surfaceView = findViewById(R.id.surfaceView) //make sure to set surface view ID in the layout file
         //allows event handling when stuff happens to the surface view such as is created, changed and destroyed. (every frame of teh camera will change it)
         surfaceView.holder.addCallback(this)
+        Log.d("CameraStream", "On Create fully ran for CameraStreamActivity")
 
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        Log.d("CameraStream", "surfaceCreated method started")
         surface = holder.surface
         // here we start listening to the incoming frames
         cameraStreamManager.addFrameListener(
@@ -54,6 +57,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             ICameraStreamManager.FrameFormat.RGBA_8888,
             frameListener
         )
+        Log.d("CameraStream", "surfaceCreated method over")
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -80,9 +84,10 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         runOnUiThread { // is this nessessary or AI bullshit?
             surface?.let { surface ->
                 try {
+                    Log.d("CameraStream", "Made it to the try loop this should mean the  surface is not null")
                     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                     val buffer = ByteBuffer.wrap(frameData, offset, width * height * 4) // again how does this offset work? although it seems like they want the offset seperatly so maybe it is right?
-                    // val buffer = ByteBuffer.wrap(frameData, offset, width * height * offset) // should this be it
+                    // val buffer = ByteBuffer.wrap(frameData, offset, width * height * offset) // should it be this
                     bitmap.copyPixelsFromBuffer(buffer)
 
                     val canvas = surface.lockCanvas(null) //what is the canvas for and what does this do  - we lock the canvas to be able to draw on it and later unlock it
