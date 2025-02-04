@@ -29,27 +29,28 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             height: Int,
             format: ICameraStreamManager.FrameFormat
         ) {
-            Log.d("CameraStream", "OnFrame of framellistener is called")
-//            modifyGreenChannel(frameData, offset, width, height) // we will uncomment later when we know the stream works
-
+            Log.d("CameraStream", "OnFrame of framelistener is called")
+            Log.d("CameraStream", "Frame data size: " + frameData.size + " - (first 10 bytes): ${frameData.take(10).joinToString("") { "%02x".format(it) }}") // want to see the ByteArray
+            //modifyGreenChannel(frameData, offset, width, height) // we will uncomment later when we know the stream works
+            Log.d("CameraStream", "")
             // draws the frame into the SurfaceView
             drawFrameOnSurface(frameData, offset, width, height) //will uncomment when written the method
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) { //
-        Log.d("CameraStream", "On Create started for CameraStreamActivity")
+//        Log.d("CameraStream", "On Create started for CameraStreamActivity")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera_stream)
         surfaceView = findViewById(R.id.surfaceView) //make sure to set surface view ID in the layout file
         //allows event handling when stuff happens to the surface view such as is created, changed and destroyed. (every frame of teh camera will change it)
         surfaceView.holder.addCallback(this)
-        Log.d("CameraStream", "On Create fully ran for CameraStreamActivity")
+//        Log.d("CameraStream", "On Create fully ran for CameraStreamActivity")
 
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        Log.d("CameraStream", "surfaceCreated method started")
+//        Log.d("CameraStream", "surfaceCreated method started")
         surface = holder.surface
         // here we start listening to the incoming frames
         cameraStreamManager.addFrameListener(
@@ -58,7 +59,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 //            ICameraStreamManager.FrameFormat.NV21, //testing difernt format as per Jacobs idea
             frameListener
         )
-        Log.d("CameraStream", "surfaceCreated method over")
+//        Log.d("CameraStream", "surfaceCreated method over")
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -73,13 +74,44 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun modifyGreenChannel(frameData: ByteArray, offset: Int, width: Int, height: Int) {
-        for (i in offset until offset + width * height * 4 step 4) { //find out what the offset really means in the bytesteam
-            // should it be this - for (i in 0 until width * height * 4 step offset) - this feels like what Jacob explained
-            // need to find out what DJI means by byteStream and then use it accordingly - maybe ill try these two though just to see if they are right
-            val greenValue = frameData[i + 1] // this gets me the  value for the green component of the pixel
-            val newGreen = (greenValue + 20).coerceAtMost(0xFF).toByte()
+        Log.d("CameraStream", "First line of modifyGreenChannel method")
+
+        // Validate parameters first
+        if (offset < 0) {
+            Log.e("CameraStream", "Invalid negative offset: $offset")
+            return
+        }
+
+        // Add counter for log throttling
+        var iterationCount = 0
+
+        // Process pixels assuming 4-byte format (e.g., RGBA)
+        // Now starts from 0 instead of offset, with step=4
+        for (i in 0 until (frameData.size - 1) step 4) {
+            // Only log every 200,000 iterations
+            if (iterationCount++ % 200000 == 0) {
+                Log.d("CameraStream", "Processing iteration $iterationCount")
+                Log.d("CameraStream", "i: $i")
+            }
+
+            // Safety check for array bounds
+            if (i + 1 >= frameData.size) {
+                Log.w("CameraStream", "Index out of bounds at i: $i")
+                break
+            }
+
+            // Get and modify green channel
+            val greenValue = frameData[i + 1]
+            val newGreen = (greenValue + 20).coerceAtMost(0xFE).toByte()
+
+            if (iterationCount % 200000 == 0) {
+                Log.d("CameraStream", "Original green: $greenValue, New green: $newGreen")
+            }
+
             frameData[i + 1] = newGreen
         }
+
+        Log.d("CameraStream", "Completed processing. Total iterations: $iterationCount")
     }
 
     private fun drawFrameOnSurface(frameData: ByteArray, offset: Int, width: Int, height: Int) {
