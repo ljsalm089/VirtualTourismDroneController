@@ -7,10 +7,17 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.appcompat.app.AppCompatActivity
+import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.FFmpegKitConfig
+import com.arthenica.ffmpegkit.FFmpegSession
+import com.arthenica.ffmpegkit.ReturnCode
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.ByteBuffer
+
 
 class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
@@ -18,7 +25,9 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var surface: Surface? = null // how we draw the camera stream
     private val cameraStreamManager: ICameraStreamManager = MediaDataCenter.getInstance().cameraStreamManager // we need the camera manager to use camera functions
     private val cameraIndex = ComponentIndexType.LEFT_OR_MAIN // which camera we end up using MAY NEED TO TWEAK IF I HAVE THE WRONG CAM
+    private var pipe1: String = ""
 
+    val TAG = "DebugTag"
 
     private val frameListener = object : ICameraStreamManager.CameraFrameListener {
         override fun onFrame(
@@ -56,11 +65,61 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         cameraStreamManager.addFrameListener(
             cameraIndex,
             ICameraStreamManager.FrameFormat.RGBA_8888,
-//            ICameraStreamManager.FrameFormat.NV21, //testing difernt format as per Jacobs idea
             frameListener
         )
+
+//        Call here to start FFmpeg session
+        startFFmpegSession();
+
 //        Log.d("CameraStream", "surfaceCreated method over")
     }
+
+    private fun startFFmpegSession (){
+        //Trying a basic call to FFmpeg to ensure it is here
+        pipe1 = FFmpegKitConfig.registerNewFFmpegPipe(this)
+        Log.e(TAG, "A pipe looks like " + pipe1)
+
+
+        val ffmpegCommand = "-i" + pipe1 // + whip stuff
+        val session = FFmpegKit.execute(ffmpegCommand)
+
+        var failStackTrace = session.failStackTrace
+        if (failStackTrace == null) failStackTrace == "no trace"
+        if (ReturnCode.isSuccess(session.returnCode)) {
+            // SUCCESS
+            Log.d(TAG,"Success")
+//            Log.d(TAG, failStackTrace)
+        } else if (ReturnCode.isCancel(session.returnCode)) {
+            // CANCEL
+            Log.d(TAG,"Canceled")
+//            Log.d(TAG, failStackTrace)
+        } else {
+            // FAILURE
+
+            Log.d(
+                TAG,
+                String.format(
+                    "Command failed with state %s and rc %s.%s",
+                    session.state,
+                    session.returnCode,
+                    session.failStackTrace
+                )
+            )
+//            Log.d(TAG, failStackTrace)
+        }
+    }
+
+//    private fun writeVideoFrameToFFmpeg( bitmap: Bitmap) {
+//        //# Encodes the byte array of a Bitmap object as FFmpeg video frame
+//        if (session.running == true)
+//        {
+//            Frame_Bytes = bitmap.getBytes(); //# read pixel values to a byte array
+//            session.standardInput.writeBytes(Frame_Bytes); //# Send data to FFmpeg for new frame encode
+//
+//            Frame_Bytes.clear(); //# empty byte array for re-use with next frame
+//
+//        }
+//    }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         //if we need to handle rotations and other stuff
@@ -127,6 +186,18 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 //                    Log.d("CameraStream", "buffer val created")
                     bitmap.copyPixelsFromBuffer(buffer) //currently getting an error here - Buffer not large enough for pixels - offset problem?
 //                    Log.d("CameraStream", "bitmap copied from buffer")
+
+                    //send frames here?
+
+                    if (pipe1.isNotEmpty()) {
+                        Log.d(TAG, "pipe not empty")
+                        var f = File(pipe1)
+                        val frameWriter = FileOutputStream(f)
+                        Log.d(TAG, "set frameWriter to output to file")
+                        frameWriter.write(frameData, 0, frameData.size)
+                        Log.d(TAG, "wrote framedata to file")
+                        Log.d(TAG, frameData.toString())
+                    }
 
                     val canvas = surface.lockCanvas(null) //what is the canvas for and what does this do  - we lock the canvas to be able to draw on it and later unlock it
 //                    Log.d("CameraStream", "canva setup")

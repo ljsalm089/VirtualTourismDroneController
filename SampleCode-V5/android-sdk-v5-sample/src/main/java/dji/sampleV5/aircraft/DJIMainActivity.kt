@@ -24,6 +24,7 @@ import dji.v5.utils.common.PermissionUtil
 import dji.v5.utils.common.StringUtils
 import io.reactivex.rxjava3.disposables.CompositeDisposable
 
+
 /**
  * Class Description
  *

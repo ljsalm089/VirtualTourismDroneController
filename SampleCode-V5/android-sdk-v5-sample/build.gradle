@@ -133,4 +133,7 @@ dependencies {
     implementation deps.dom
     kapt deps.glidecompiler
     implementation deps.lynx
+
+    //FFmpeg library
+    implementation 'com.arthenica:ffmpeg-kit-full-gpl:6.0-2.LTS'
 }
