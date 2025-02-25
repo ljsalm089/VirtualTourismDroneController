@@ -2,6 +2,7 @@ package dji.sampleV5.aircraft
 
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.os.Environment
 import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -9,11 +10,12 @@ import android.view.SurfaceView
 import androidx.appcompat.app.AppCompatActivity
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.FFmpegKitConfig
-import com.arthenica.ffmpegkit.FFmpegSession
+import com.arthenica.ffmpegkit.FFmpegSessionCompleteCallback
 import com.arthenica.ffmpegkit.ReturnCode
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
+import org.jetbrains.annotations.Async.Execute
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -26,6 +28,9 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private val cameraStreamManager: ICameraStreamManager = MediaDataCenter.getInstance().cameraStreamManager // we need the camera manager to use camera functions
     private val cameraIndex = ComponentIndexType.LEFT_OR_MAIN // which camera we end up using MAY NEED TO TWEAK IF I HAVE THE WRONG CAM
     private var pipe1: String = ""
+    var frameWriter: FileOutputStream? = null
+    var f: File? = null
+
 
     val TAG = "DebugTag"
 
@@ -43,7 +48,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             //modifyGreenChannel(frameData, offset, width, height) // we will uncomment later when we know the stream works
             Log.d("CameraStream", "")
             // draws the frame into the SurfaceView
-            drawFrameOnSurface(frameData, offset, width, height) //will uncomment when written the method
+            //drawFrameOnSurface(frameData, offset, width, height) //will uncomment when written the method
+            testingPipe()
         }
     }
 
@@ -77,49 +83,39 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private fun startFFmpegSession (){
         //Trying a basic call to FFmpeg to ensure it is here
         pipe1 = FFmpegKitConfig.registerNewFFmpegPipe(this)
-        Log.e(TAG, "A pipe looks like " + pipe1)
+        Log.d(TAG, "A pipe looks like " + pipe1)
 
 
-        val ffmpegCommand = "-i" + pipe1 // + whip stuff
-        val session = FFmpegKit.execute(ffmpegCommand)
+//        val ffmpegCommand = "-i" + pipe1 // + whip stuff
+//        val session = FFmpegKit.execute(ffmpegCommand)
 
-        var failStackTrace = session.failStackTrace
-        if (failStackTrace == null) failStackTrace == "no trace"
-        if (ReturnCode.isSuccess(session.returnCode)) {
-            // SUCCESS
-            Log.d(TAG,"Success")
-//            Log.d(TAG, failStackTrace)
-        } else if (ReturnCode.isCancel(session.returnCode)) {
-            // CANCEL
-            Log.d(TAG,"Canceled")
-//            Log.d(TAG, failStackTrace)
-        } else {
-            // FAILURE
+        var outputFile = File(getExternalFilesDir(Environment.DIRECTORY_MOVIES), "file2.mp4")
+        val rtmp_url = "rtp://10.96.95.54:1935/cam"
 
-            Log.d(
-                TAG,
-                String.format(
-                    "Command failed with state %s and rc %s.%s",
-                    session.state,
-                    session.returnCode,
-                    session.failStackTrace
-                )
-            )
-//            Log.d(TAG, failStackTrace)
-        }
+//        val session = FFmpegKit.executeAsync("-re -f rawvideo -pixel_format argb32 -video_size 640x480 -i " + pipe1 + " -f mpeg4 " + outputFile.absolutePath, FFmpegSessionCompleteCallback
+        val session = FFmpegKit.executeAsync("-re -f rawvideo -pixel_format argb32 -video_size 640x480 -i " + pipe1 + " -f rtp_mpegts " + rtmp_url, FFmpegSessionCompleteCallback
+                { session ->
+                    val state = session.state
+                    val returnCode = session.returnCode
+                    // CALLED WHEN SESSION IS EXECUTED
+                    Log.d(
+                        TAG,
+                        String.format(
+                            "FFmpeg process exited with state %s and rc %s.%s",
+                            state,
+                            returnCode,
+                            session.failStackTrace
+                        )
+                    )
+                }, {
+                    // CALLED WHEN SESSION PRINTS LOGS
+                }, {
+                    // CALLED WHEN SESSION GENERATES STATISTICS
+                })
+        // the session is currently failing - why though? is the command wrong?
+//        f = File(pipe1)
+//        frameWriter = FileOutputStream(f)
     }
-
-//    private fun writeVideoFrameToFFmpeg( bitmap: Bitmap) {
-//        //# Encodes the byte array of a Bitmap object as FFmpeg video frame
-//        if (session.running == true)
-//        {
-//            Frame_Bytes = bitmap.getBytes(); //# read pixel values to a byte array
-//            session.standardInput.writeBytes(Frame_Bytes); //# Send data to FFmpeg for new frame encode
-//
-//            Frame_Bytes.clear(); //# empty byte array for re-use with next frame
-//
-//        }
-//    }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         //if we need to handle rotations and other stuff
@@ -174,7 +170,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun drawFrameOnSurface(frameData: ByteArray, offset: Int, width: Int, height: Int) {
-        runOnUiThread { // is this nessessary or AI bullshit?
+        runOnUiThread {
             surface?.let { surface ->
                 try {
 //                    Log.d("CameraStream", "Made it to the try loop of the drawFrameOnSurface")
@@ -187,18 +183,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     bitmap.copyPixelsFromBuffer(buffer) //currently getting an error here - Buffer not large enough for pixels - offset problem?
 //                    Log.d("CameraStream", "bitmap copied from buffer")
 
-                    //send frames here?
-
-                    if (pipe1.isNotEmpty()) {
-                        Log.d(TAG, "pipe not empty")
-                        var f = File(pipe1)
-                        val frameWriter = FileOutputStream(f)
-                        Log.d(TAG, "set frameWriter to output to file")
-                        frameWriter.write(frameData, 0, frameData.size)
-                        Log.d(TAG, "wrote framedata to file")
-                        Log.d(TAG, frameData.toString())
-                    }
-
                     val canvas = surface.lockCanvas(null) //what is the canvas for and what does this do  - we lock the canvas to be able to draw on it and later unlock it
 //                    Log.d("CameraStream", "canva setup")
                     canvas.drawBitmap(bitmap, 0f, 0f, null)
@@ -207,6 +191,10 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 //                    Log.d("CameraStream", "canvas unlocked")
                     bitmap.recycle() //free the memory
 //                    Log.d("CameraStream", "bitmap freed")
+
+                    //send frames here?
+                    writeToPipe(frameData)
+
                 } catch (e: Exception) {
                     Log.e("CameraStream", "Failed to draw frame: ${e.message}")
                 }
@@ -214,10 +202,44 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
+    private fun writeToPipe(frameData: ByteArray){
+        if (pipe1.isNotEmpty()) {
+            Log.d(TAG, "pipe not empty")
+
+            Log.d(TAG, "set frameWriter to output to file")
+            frameWriter?.write(frameData, 0, frameData.size)
+            Log.d(TAG, "wrote framedata to file")
+            Log.d(TAG, frameData.toString())
+        }
+//        FFmpegKit.executeAsync("-re -f rawvideo -pixel_format argb32 -video_size 640x480 -i " + pipe1 + " -f rtp_mpegts" + " " + rtmp_url, new FFmpegSessionCompleteCallback() {
+    }
+
+
     override fun onDestroy() {
         super.onDestroy()
         // Cleanup
         cameraStreamManager.removeFrameListener(frameListener)
     }
 
+    override fun onPause() {
+        super.onPause()
+        frameWriter?.close()
+    }
+
+    fun testingPipe() {
+        var img: ByteArray = ByteArray(640 * 480 * 4)   // dummy image
+        for (i in 3..img.size step 4) {
+            img[i] = 0xff.toByte()
+        }
+        var out: FileOutputStream = FileOutputStream(pipe1)
+        try {
+            for (i in 0..100) { // write 100 empty frames
+                out.write(img);
+            }
+        } catch (e: Exception) {
+            e.printStackTrace();
+        } finally {
+            out.close();
+        }
+    }
 }
