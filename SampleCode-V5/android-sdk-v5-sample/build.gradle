@@ -134,6 +134,15 @@ dependencies {
     kapt deps.glidecompiler
     implementation deps.lynx
 
+    //dependencies from Jiasheng code
+//    implementation libs.webrtc
+//    implementation libs.okhttp
+//    implementation libs.retrofit
+
+    implementation 'io.github.webrtc-sdk:android:125.6422.06.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
+
     //FFmpeg library
     implementation 'com.arthenica:ffmpeg-kit-full-gpl:6.0-2.LTS'
 }

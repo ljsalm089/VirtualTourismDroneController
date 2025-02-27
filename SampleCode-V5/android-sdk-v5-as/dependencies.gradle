@@ -91,4 +91,9 @@ ext {
     deps.aspectj_tools = 'org.aspectj:aspectjtools:1.9.6'
     deps.aspectj_rt = 'org.aspectj:aspectjrt:1.9.6'
     deps.aspectj_weaver = 'org.aspectj:aspectjweaver:1.9.6'
+
+    // Jiasheng code
+//    webrtc = 'io.github.webrtc-sdk:android:125.6422.06.1'
+//    okhttp = 'com.squareup.okhttp3:okhttp:4.12.0'
+//    retrofit = 'com.squareup.retrofit2:retrofit:2.11.0'
 }
