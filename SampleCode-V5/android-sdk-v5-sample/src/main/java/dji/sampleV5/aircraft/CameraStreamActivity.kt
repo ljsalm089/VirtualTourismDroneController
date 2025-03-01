@@ -5,14 +5,12 @@ package dji.sampleV5.aircraft
 import android.Manifest
 import android.R.attr
 import android.app.Activity
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Environment
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.PermissionChecker
@@ -21,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.FFmpegKitConfig
 import com.arthenica.ffmpegkit.FFmpegSessionCompleteCallback
+import dji.sampleV5.aircraft.databinding.ActivityCameraStreamBinding
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
@@ -79,7 +78,6 @@ val needProxy = false
 
 class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
-    private lateinit var surfaceView: SurfaceView // where we put the surface
     private var surface: Surface? = null // how we draw the camera stream
     private val cameraStreamManager: ICameraStreamManager = MediaDataCenter.getInstance().cameraStreamManager // we need the camera manager to use camera functions
     private val cameraIndex = ComponentIndexType.LEFT_OR_MAIN // which camera we end up using MAY NEED TO TWEAK IF I HAVE THE WRONG CAM
@@ -90,6 +88,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     lateinit var videoSource: VideoSource
 
     val TAG = "DebugTag"
+
+    private lateinit var binding: ActivityCameraStreamBinding
 
     private val frameListener = object : ICameraStreamManager.CameraFrameListener {
         override fun onFrame(
@@ -125,24 +125,24 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun onCreate(savedInstanceState: Bundle?) { //
 //        Log.d("CameraStream", "On Create started for CameraStreamActivity")
         super.onCreate(savedInstanceState)
+        binding = ActivityCameraStreamBinding.inflate(layoutInflater)
         setContentView(R.layout.activity_camera_stream)
-        surfaceView = findViewById(R.id.surfaceView) //make sure to set surface view ID in the layout file
         //allows event handling when stuff happens to the surface view such as is created, changed and destroyed. (every frame of teh camera will change it)
-        surfaceView.holder.addCallback(this)
+        binding.surfaceView.holder.addCallback(this)
 //        Log.d("CameraStream", "On Create fully ran for CameraStreamActivity")
 
         //jiasheng code
         val client = OkHttpClient.Builder().apply {
-            //if (needProxy) {
-            //    this.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("192.168.1.7", 8888)))
-            //}
+            if (needProxy) {
+                this.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("192.168.1.7", 8888)))
+            }
         }.build()
         retrofit = Retrofit.Builder()
             .baseUrl("http://192.168.0.136:7080/")
             .client(client)
             .build()
 
-    initializeWebRTC()
+        initializeWebRTC()
 
     }
 
@@ -478,7 +478,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private fun postSdpToServer(p: SessionDescription) {
         lifecycleScope.launch {
             try {
-                val requestBody = p.description.toRequestBody("application/sdp".toMediaType())
+                val requestBody = p.description.encodeToByteArray().toRequestBody("application/sdp".toMediaType())
                 val result = retrofit.create(IRequest::class.java).postSdp(videoUrl, requestBody).string()
                 launch(Dispatchers.Main) {
                     peerConnection.setRemoteDescription(object : SdpObserver {

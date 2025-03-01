@@ -14,11 +14,11 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
-    kotlinOptions{
+    kotlinOptions {
         jvmTarget = JavaVersion.VERSION_1_8
         freeCompilerArgs += ["-Xjvm-default=all"]
     }
@@ -54,6 +54,7 @@ dependencies {
     implementation deps.mikepenzIconicsCore
     implementation deps.mikepenzIonicons
     implementation deps.material
+    implementation deps.webrtc
 
     api deps.maplibreTurf
     api deps.maplibreSdk

@@ -46,7 +46,7 @@ App.Compat theme or something - 5.3 Tuesday 10th -->
 
         <meta-data
             android:name="com.dji.sdk.API_KEY"
-            android:value="d1b196b829606e115a465efc" />
+            android:value="3a14cc01e186d54a8431d3de" />
 
         <!-- Maplibre Token -->
         <meta-data

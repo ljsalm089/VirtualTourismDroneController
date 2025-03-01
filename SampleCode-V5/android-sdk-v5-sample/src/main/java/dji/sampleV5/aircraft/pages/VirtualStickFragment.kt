@@ -1,6 +1,7 @@
 package dji.sampleV5.aircraft.pages
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -82,6 +83,7 @@ class VirtualStickFragment : DJIFragment() {
 
                 override fun onFailure(error: IDJIError) {
                     ToastUtils.showToast("enableVirtualStick error,$error")
+                    Log.i(VirtualStickFragment::class.simpleName, error.toString())
                 }
             })
         }

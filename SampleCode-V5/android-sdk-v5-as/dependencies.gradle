@@ -96,4 +96,7 @@ ext {
 //    webrtc = 'io.github.webrtc-sdk:android:125.6422.06.1'
 //    okhttp = 'com.squareup.okhttp3:okhttp:4.12.0'
 //    retrofit = 'com.squareup.retrofit2:retrofit:2.11.0'
+
+    // webrtc
+    deps.webrtc = 'io.github.webrtc-sdk:android:125.6422.06.1'
 }
