@@ -5,20 +5,24 @@ import org.webrtc.CapturerObserver
 import org.webrtc.SurfaceTextureHelper
 import org.webrtc.VideoCapturer
 
-public class DJIVideoCapturer : VideoCapturer {
+class DJIVideoCapturer : VideoCapturer {
 
-    private var capturerObserver: CapturerObserver? = null
+    var isCapturing = false
+        private set
+
+    var capturerObserver: CapturerObserver? = null
+        private set
 
     override fun initialize(surfaceTextureHelper: SurfaceTextureHelper?, applicationContext: Context?, capturerObserver: CapturerObserver?) {
         this.capturerObserver = capturerObserver
     }
 
     override fun startCapture(width: Int, height: Int, framerate: Int) {
-
+        isCapturing = true
     }
 
     override fun stopCapture() {
-
+        isCapturing = false
     }
 
     override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {
@@ -26,7 +30,7 @@ public class DJIVideoCapturer : VideoCapturer {
     }
 
     override fun dispose() {
-
+        capturerObserver = null
     }
 
     override fun isScreencast(): Boolean {

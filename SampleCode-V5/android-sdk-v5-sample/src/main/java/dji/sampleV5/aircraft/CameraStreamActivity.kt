@@ -3,10 +3,8 @@ package dji.sampleV5.aircraft
 //webrtc things imports
 //import org.otago.hci.videosource.android.databinding.ActivityMainBinding //unresolved reference: otago
 import android.Manifest
-import android.R.attr
 import android.app.Activity
 import android.os.Bundle
-import android.os.Environment
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
@@ -16,9 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.PermissionChecker
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.lifecycle.lifecycleScope
-import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.FFmpegKitConfig
-import com.arthenica.ffmpegkit.FFmpegSessionCompleteCallback
+import com.google.gson.Gson
 import dji.sampleV5.aircraft.databinding.ActivityCameraStreamBinding
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
@@ -48,46 +44,49 @@ import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
-import org.webrtc.VideoCapturer
 import org.webrtc.VideoFrame
-import org.webrtc.VideoFrame.I420Buffer
 import org.webrtc.VideoSource
 import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.POST
-import retrofit2.http.Url
-import java.io.File
+import retrofit2.http.Path
 import java.io.FileOutputStream
 import java.net.InetSocketAddress
 import java.net.Proxy
-import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 
 
-val permissions = listOf(Manifest.permission.CAMERA,
+val permissions = listOf(
+    Manifest.permission.CAMERA,
     Manifest.permission.RECORD_AUDIO,
-    Manifest.permission.ACCESS_NETWORK_STATE)
+    Manifest.permission.ACCESS_NETWORK_STATE
+)
 
 //val TAG = "MainActivity"
 
-// the url to publish the video
-val videoUrl = "http://192.168.0.136:7080/whip/endpoint/test"
+val baseUrl = "http://10.96.231.121:7080/"
 
 val needProxy = false
 
+val proxtHost = "192.168.142.127"
+val proxyPort = 8888
+
+val endPoint = "test"
 
 class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
-    private var surface: Surface? = null // how we draw the camera stream
-    private val cameraStreamManager: ICameraStreamManager = MediaDataCenter.getInstance().cameraStreamManager // we need the camera manager to use camera functions
-    private val cameraIndex = ComponentIndexType.LEFT_OR_MAIN // which camera we end up using MAY NEED TO TWEAK IF I HAVE THE WRONG CAM
-    private var pipe1: String = ""
+    private var surface: Surface? = null
+
+    private val cameraIndex =
+        ComponentIndexType.LEFT_OR_MAIN // which camera we end up using MAY NEED TO TWEAK IF I HAVE THE WRONG CAM
+
     var frameWriter: FileOutputStream? = null
-    var f: File? = null
 
     lateinit var videoSource: VideoSource
 
-    val TAG = "DebugTag"
+    val TAG = "CameraStreamActivity"
 
     private lateinit var binding: ActivityCameraStreamBinding
 
@@ -100,103 +99,128 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             height: Int,
             format: ICameraStreamManager.FrameFormat
         ) {
-            Log.d("CameraStream", "OnFrame of framelistener is called")
-            Log.d("CameraStream", "Frame data size: " + frameData.size + " - (first 10 bytes): ${frameData.take(10).joinToString("") { "%02x".format(it) }}") // want to see the ByteArray
-            //modifyGreenChannel(frameData, offset, width, height) // we will uncomment later when we know the stream works
+            Log.d(
+                "CameraStream",
+                "Frame data size: " + frameData.size + " - (first 10 bytes): ${
+                    frameData.take(10).joinToString("") { "%02x".format(it) }
+                }"
+            )
+            modifyGreenChannel(frameData, offset, width, height)
             Log.d("CameraStream", "")
             // draws the frame into the SurfaceView
-            drawFrameOnSurface(frameData, offset, width, height) //will uncomment when written the method
-//            testingPipe()
+            drawFrameOnSurface(
+                frameData,
+                offset,
+                width,
+                height
+            )
         }
     }
 
-    //webrtc stuff
 
     private lateinit var peerConnectionFactory: PeerConnectionFactory
 
     private lateinit var peerConnection: PeerConnection
+
+    private lateinit var capturer: DJIVideoCapturer
 
     private val eglBase = EglBase.create()
 
     private lateinit var retrofit: Retrofit
 
 
-
     override fun onCreate(savedInstanceState: Bundle?) { //
-//        Log.d("CameraStream", "On Create started for CameraStreamActivity")
         super.onCreate(savedInstanceState)
         binding = ActivityCameraStreamBinding.inflate(layoutInflater)
-        setContentView(R.layout.activity_camera_stream)
+        setContentView(binding.root)
+
+        binding.btnStart.setOnClickListener {
+            publish()
+        }
+
+        binding.btnEnd.setOnClickListener {
+            stopPublishing()
+        }
+
+
         //allows event handling when stuff happens to the surface view such as is created, changed and destroyed. (every frame of teh camera will change it)
         binding.surfaceView.holder.addCallback(this)
-//        Log.d("CameraStream", "On Create fully ran for CameraStreamActivity")
 
-        //jiasheng code
         val client = OkHttpClient.Builder().apply {
             if (needProxy) {
-                this.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("192.168.1.7", 8888)))
+                this.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxtHost, proxyPort)))
             }
         }.build()
         retrofit = Retrofit.Builder()
-            .baseUrl("http://192.168.0.136:7080/")
+            .baseUrl(baseUrl)
+            .addConverterFactory(GsonConverterFactory.create(Gson()))
             .client(client)
             .build()
 
-        initializeWebRTC()
+    }
 
+    private fun publish() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val body = hashMapOf(
+                    Pair("id", endPoint),
+                    Pair("room", 1234),
+                    Pair("secret", "adminpwd"),
+                    Pair("recipient", hashMapOf(
+                        Pair("host", "127.0.0.1"),
+                        Pair("audioPort", 5002),
+                        Pair("audioRtcPort", 5003),
+                        Pair("videoPort", 5004),
+                        Pair("videoRtcPort", 5005),
+                        Pair("dataport", 5006)
+                    ))
+                )
+                retrofit.create(IRequest::class.java).createEndPoint(body)
+                launch(Dispatchers.Main) {
+                    initializeWebRTC()
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Failed to create the endpoint: $e")
+                showMessage("Failed to create the endpoint")
+            }
+        }
+    }
+
+    private fun stopPublishing() {
+        if (this::capturer.isInitialized) {
+            capturer.dispose()
+        }
+        if (this::peerConnection.isInitialized) {
+            peerConnection.dispose()
+        }
+        if (this::peerConnectionFactory.isInitialized) {
+            peerConnectionFactory.dispose()
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                retrofit.create(IRequest::class.java).destroyEndPoint(endPoint)
+                showMessage("Destroy endpoint successfully")
+            } catch (e: Exception) {
+                Log.d(TAG, "Failed to destroy the endpoint: $e")
+                showMessage("Failed to destroy the endpoint")
+            }
+        }
+    }
+
+    private fun showMessage(msg: String) {
+        lifecycleScope.launch (Dispatchers.Main) {
+            showToast(msg)
+        }
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-//        Log.d("CameraStream", "surfaceCreated method started")
         surface = holder.surface
-        // here we start listening to the incoming frames
-        cameraStreamManager.addFrameListener(
+        MediaDataCenter.getInstance().cameraStreamManager.addFrameListener(
             cameraIndex,
             ICameraStreamManager.FrameFormat.NV21,
             frameListener
         )
 
-//        Call here to start FFmpeg session
-        //startFFmpegSession();
-
-//        Log.d("CameraStream", "surfaceCreated method over")
-    }
-
-    private fun startFFmpegSession (){
-        //Trying a basic call to FFmpeg to ensure it is here
-        pipe1 = FFmpegKitConfig.registerNewFFmpegPipe(this)
-        Log.d(TAG, "A pipe looks like " + pipe1)
-
-
-//        val ffmpegCommand = "-i" + pipe1 // + whip stuff
-//        val session = FFmpegKit.execute(ffmpegCommand)
-
-        var outputFile = File(getExternalFilesDir(Environment.DIRECTORY_MOVIES), "file2.mp4")
-        val rtmp_url = "rtp://10.96.95.54:1935/cam"
-
-//        val session = FFmpegKit.executeAsync("-re -f rawvideo -pixel_format argb32 -video_size 640x480 -i " + pipe1 + " -f mpeg4 " + outputFile.absolutePath, FFmpegSessionCompleteCallback
-        val session = FFmpegKit.executeAsync("-re -f rawvideo -pixel_format nv21 -video_size 640x480 -i " + pipe1 + " -f rtp_mpegts " + rtmp_url, FFmpegSessionCompleteCallback
-                { session ->
-                    val state = session.state
-                    val returnCode = session.returnCode
-                    // CALLED WHEN SESSION IS EXECUTED
-                    Log.d(
-                        TAG,
-                        String.format(
-                            "FFmpeg process exited with state %s and rc %s.%s",
-                            state,
-                            returnCode,
-                            session.failStackTrace
-                        )
-                    )
-                }, {
-                    // CALLED WHEN SESSION PRINTS LOGS
-                }, {
-                    // CALLED WHEN SESSION GENERATES STATISTICS
-                })
-        // the session is currently failing - why though? is the command wrong?
-//        f = File(pipe1)
-//        frameWriter = FileOutputStream(f)
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -206,7 +230,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         // clean up when the surface is destroyed
         surface = null
-        cameraStreamManager.removeFrameListener(frameListener)
+        MediaDataCenter.getInstance().cameraStreamManager.removeFrameListener(frameListener)
         Log.d("CameraStream", "frameListener removed")
     }
 
@@ -252,72 +276,37 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun drawFrameOnSurface(frameData: ByteArray, offset: Int, width: Int, height: Int) {
-        runOnUiThread {
-            surface?.let { surface ->
-                try {
-//                    Log.d("CameraStream", "Made it to the try loop of the drawFrameOnSurface")
-//                    Log.d("CameraStream", "Frame data: ${frameData.joinToString("") { "%02x".format(it) }}") // want to see the ByteArray
-                    //val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-//                    Log.d("CameraStream", "bitmap val set up")
-//                    val buffer = ByteBuffer.wrap(frameData, offset, width * height * 4) // trying old way and commenting out the first way - post test (this one makes us error earlier with null error) - this one is baad dont use!!!!
-                    //val buffer = ByteBuffer.wrap(frameData, offset, frameData.size) // again how does this offset work? although it seems like they want the offset seperatly so maybe it is right?
-//                    Log.d("CameraStream", "buffer val created")
-                    //bitmap.copyPixelsFromBuffer(buffer) //currently getting an error here - Buffer not large enough for pixels - offset problem?
-//                    Log.d("CameraStream", "bitmap copied from buffer")
+        if (!this::capturer.isInitialized || !capturer.isCapturing || null == capturer.capturerObserver) return
 
-                    //val canvas = surface.lockCanvas(null) //what is the canvas for and what does this do  - we lock the canvas to be able to draw on it and later unlock it
-//                    Log.d("CameraStream", "canva setup")
-                    //canvas.drawBitmap(bitmap, 0f, 0f, null)
-//                    Log.d("CameraStream", "bitmap drawn on canvas")
-                    //surface.unlockCanvasAndPost(canvas)
-//                    Log.d("CameraStream", "canvas unlocked")
-                    //bitmap.recycle() //free the memory
-//                    Log.d("CameraStream", "bitmap freed")
-
-                    //send frames here?
-//                    writeToPipe(frameData)
-
-                    //send frames jaisheng way
-                    Log.d(TAG, "starting the videoFrame making")
-                    val nv21Buffer: NV21Buffer = NV21Buffer(frameData, width, height, null)
-                        //ConversionUtils.convertARGB32ToI420(frameData, attr.width, attr.height)
-                    Log.d(TAG, "buffer created: ")
-                    val timestampNS: Long =
-                        TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime())
-                    Log.d(TAG, "timestamp: $timestampNS")
-                    //val videoFrame = VideoFrame(i420Buffer, 0, timestampNS)
-                    val videoFrame = VideoFrame(nv21Buffer, 0, timestampNS)
-                    Log.d(TAG, "videoFrame made")
-                    videoSource.capturerObserver?.onFrameCaptured(videoFrame)
-                    Log.d(TAG, "sent frame to videoSource")
-                    videoFrame.release()
-                    Log.d(TAG, "release videoFrame")
-
-
-                } catch (e: Exception) {
-                    Log.e("CameraStream", "Failed to draw frame/set videoFrame: ${e.message}")
-                }
-            } ?: Log.e("CameraStream", "Surface is null") // elvis operator! this happens if the whole surface?.let thing doesnt work
-        }
+        surface?.let { surface ->
+            try {
+                Log.d(TAG, "starting the videoFrame making")
+                val nv21Buffer: NV21Buffer = NV21Buffer(frameData, width, height, null)
+                //ConversionUtils.convertARGB32ToI420(frameData, attr.width, attr.height)
+                Log.d(TAG, "buffer created: ")
+                val timestampNS: Long =
+                    TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime())
+                Log.d(TAG, "timestamp: $timestampNS")
+                //val videoFrame = VideoFrame(i420Buffer, 0, timestampNS)
+                val videoFrame = VideoFrame(nv21Buffer, 0, timestampNS)
+                Log.d(TAG, "videoFrame made")
+                capturer.capturerObserver?.onFrameCaptured(videoFrame)
+                Log.d(TAG, "sent frame to videoSource")
+                videoFrame.release()
+                Log.d(TAG, "release videoFrame")
+            } catch (e: Exception) {
+                Log.e("CameraStream", "Failed to draw frame/set videoFrame: ${e.message}")
+            }
+        } ?: Log.e(
+            "CameraStream",
+            "Surface is null"
+        )
     }
-
-    private fun writeToPipe(frameData: ByteArray){
-        if (pipe1.isNotEmpty()) {
-            Log.d(TAG, "pipe not empty")
-
-            Log.d(TAG, "set frameWriter to output to file")
-            frameWriter?.write(frameData, 0, frameData.size)
-            Log.d(TAG, "wrote framedata to file")
-            Log.d(TAG, frameData.toString())
-        }
-//        FFmpegKit.executeAsync("-re -f rawvideo -pixel_format argb32 -video_size 640x480 -i " + pipe1 + " -f rtp_mpegts" + " " + rtmp_url, new FFmpegSessionCompleteCallback() {
-    }
-
 
     override fun onDestroy() {
         super.onDestroy()
         // Cleanup
-        cameraStreamManager.removeFrameListener(frameListener)
+        MediaDataCenter.getInstance().cameraStreamManager.removeFrameListener(frameListener)
     }
 
     override fun onPause() {
@@ -325,25 +314,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         frameWriter?.close()
     }
 
-    fun testingPipe() {
-        var img: ByteArray = ByteArray(640 * 480 * 4)   // dummy image
-        for (i in 3..img.size step 4) {
-            img[i] = 0xff.toByte()
-        }
-        var out: FileOutputStream = FileOutputStream(pipe1)
-        try {
-            for (i in 0..100) { // write 100 empty frames
-                out.write(img);
-            }
-        } catch (e: Exception) {
-            e.printStackTrace();
-        } finally {
-            out.close();
-        }
-    }
 
     //webRTC and co from Jason down here
-
     private fun hasPermission(): Boolean {
         for (permission in permissions) {
             if (PermissionChecker.checkSelfPermission(this, permission) != PERMISSION_GRANTED) {
@@ -353,29 +325,27 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         return true
     }
 
-    // commenting this out since I get an error saying onRequested permission result overrides nothing
-
-//    override fun onRequestPermissionsResult(
-//        requestCode: Int,
-//        permissions: Array<out String>,
-//        grantResults: IntArray,
-//        deviceId: Int
-//    ) {
-//        super.onRequestPermissionsResult(requestCode, permissions, grantResults, deviceId)
-//        if (requestCode == 100) {
-//            if (hasPermission()) {
-//                // continue
-//                initializeWebRTC()
-//            } else {
-//                showToast("No enough permissions")
-//            }
-//        }
-//    }
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 100) {
+            if (hasPermission()) {
+                // continue
+                initializeWebRTC()
+            } else {
+                showToast("No enough permissions")
+            }
+        }
+    }
 
     private fun initializeWebRTC() {
-        var option: PeerConnectionFactory.InitializationOptions = PeerConnectionFactory.InitializationOptions.builder(application)
-            .setEnableInternalTracer(true)
-            .createInitializationOptions()
+        var option: PeerConnectionFactory.InitializationOptions =
+            PeerConnectionFactory.InitializationOptions.builder(application)
+                .setEnableInternalTracer(true)
+                .createInitializationOptions()
         PeerConnectionFactory.initialize(option)
 
         peerConnectionFactory = PeerConnectionFactory.builder()
@@ -384,23 +354,19 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             .createPeerConnectionFactory()
 
         // TODO write custom VideoCapturer to push the video to the server
-        val videoCapturer = DJIVideoCapturer()
-        //val videoCapturer: VideoCapturer? = createCameraCapturer(Camera2Enumerator(this))
-        if (null == videoCapturer) {
-            Log.e(TAG, "unable to create the video capturer!")
-            return
-        }
-        videoSource = peerConnectionFactory.createVideoSource(videoCapturer!!.isScreencast)
-        videoCapturer.initialize(
+        capturer = DJIVideoCapturer()
+
+        videoSource = peerConnectionFactory.createVideoSource(capturer.isScreencast)
+        capturer.initialize(
             SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext),
             applicationContext,
             videoSource.capturerObserver
         )
-        videoCapturer.startCapture(1280, 720, 30)
+        capturer.startCapture(1280, 720, 30)
         val localVideoTrack = peerConnectionFactory.createVideoTrack("videoTrack", videoSource)
 
         val iceServers: MutableList<IceServer> = ArrayList()
-        //iceServers.add(IceServer("stun:stun.l.google.com:19302"))
+        iceServers.add(IceServer("stun:stun.l.google.com:19302"))
 
         val rtcConfig = RTCConfiguration(iceServers)
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
@@ -408,6 +374,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         val connection =
             peerConnectionFactory.createPeerConnection(rtcConfig, object : Observer {
                 override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
+                    Log.d(TAG, "onSignalingChange: $p0")
                 }
 
                 override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
@@ -415,9 +382,11 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 }
 
                 override fun onIceConnectionReceivingChange(p0: Boolean) {
+                    Log.d(TAG, "onIceConnectionReceivingChange: $p0")
                 }
 
                 override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
+                    Log.d(TAG, "onIceGatheringChange: $p0")
                 }
 
                 override fun onIceCandidate(p0: IceCandidate?) {
@@ -425,6 +394,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 }
 
                 override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {
+                    Log.d(TAG, "onIceCandidatesRemoved")
                 }
 
                 override fun onAddStream(p0: MediaStream?) {
@@ -437,6 +407,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 }
 
                 override fun onRenegotiationNeeded() {
+                    Log.d(TAG, "onRenogotiationNeeded")
                 }
             })
         if (null == connection) {
@@ -462,12 +433,15 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 }
 
                 override fun onSetSuccess() {
+                    Log.d(TAG, "set local sdp successfully")
                 }
 
                 override fun onCreateFailure(p0: String?) {
+                    Log.d(TAG, "failed to create local sdp: $p0")
                 }
 
                 override fun onSetFailure(p0: String?) {
+                    Log.d(TAG, "failed to set local sdp: $p0")
                 }
 
             }, MediaConstraints())
@@ -478,20 +452,24 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private fun postSdpToServer(p: SessionDescription) {
         lifecycleScope.launch {
             try {
-                val requestBody = p.description.encodeToByteArray().toRequestBody("application/sdp".toMediaType())
-                val result = retrofit.create(IRequest::class.java).postSdp(videoUrl, requestBody).string()
+                val requestBody =
+                    p.description.encodeToByteArray().toRequestBody("application/sdp".toMediaType())
+                val result =
+                    retrofit.create(IRequest::class.java).postSdp(endPoint, requestBody).string()
                 launch(Dispatchers.Main) {
                     peerConnection.setRemoteDescription(object : SdpObserver {
                         override fun onCreateSuccess(p0: SessionDescription?) {
                         }
 
                         override fun onSetSuccess() {
+                            Log.d(TAG, "set remote sdp successfully")
                         }
 
                         override fun onCreateFailure(p0: String?) {
                         }
 
                         override fun onSetFailure(p0: String?) {
+                            Log.d(TAG, "failed to set remote sdp: $p0")
                         }
 
                     }, SessionDescription(SessionDescription.Type.ANSWER, result))
@@ -505,7 +483,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun createCameraCapturer(enumerator: Camera2Enumerator) : CameraVideoCapturer? {
+    private fun createCameraCapturer(enumerator: Camera2Enumerator): CameraVideoCapturer? {
         val deviceNames = enumerator.deviceNames
 
         for (deviceName in deviceNames) {
@@ -526,7 +504,13 @@ fun Activity.showToast(msg: String) {
 
 interface IRequest {
 
-    @POST
-    suspend fun postSdp(@Url url: String,  @Body sdp: RequestBody): ResponseBody
+    @POST("/whip/endpoint/{endpoint}")
+    suspend fun postSdp(@Path("endpoint") endpoint: String, @Body sdp: RequestBody): ResponseBody
+
+    @POST("/whip/create")
+    suspend fun createEndPoint(@Body body: Any): ResponseBody
+
+    @DELETE("/whip/endpoint/{endpoint}")
+    suspend fun destroyEndPoint(@Path("endpoint") endpoint: String): ResponseBody
 
 }

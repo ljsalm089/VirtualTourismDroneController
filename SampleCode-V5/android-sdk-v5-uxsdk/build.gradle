@@ -5,6 +5,8 @@ apply plugin: 'kotlin-kapt'
 android {
     compileSdkVersion Integer.parseInt(project.ANDROID_COMPILE_SDK_VERSION)
 
+    namespace "dji.v5.ux"
+
     resourcePrefix "uxsdk_"
     defaultConfig {
         minSdkVersion Integer.parseInt(project.ANDROID_MIN_SDK_VERSION)
@@ -14,8 +16,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
@@ -41,7 +43,7 @@ dependencies {
     implementation deps.lifecycleRuntime
     implementation deps.lifecycleProcess
     implementation deps.media
-    implementation deps.kotlinLib
+    implementation deps.kotlin
     implementation deps.ktxCore
     implementation deps.rx3Android
     implementation deps.wpmzSdk

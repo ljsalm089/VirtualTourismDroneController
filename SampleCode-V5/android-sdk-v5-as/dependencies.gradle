@@ -67,7 +67,7 @@ ext {
     deps.dom = 'org.dom4j:dom4j:2.1.1'
 
     //kotlin
-    deps.kotlinLib = "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$KOTLIN_VERSION"
+    deps.kotlin = "org.jetbrains.kotlin:kotlin-stdlib:$KOTLIN_VERSION"
 
     //glide
     deps.glide = 'com.github.bumptech.glide:glide:4.9.0'
@@ -92,11 +92,13 @@ ext {
     deps.aspectj_rt = 'org.aspectj:aspectjrt:1.9.6'
     deps.aspectj_weaver = 'org.aspectj:aspectjweaver:1.9.6'
 
-    // Jiasheng code
-//    webrtc = 'io.github.webrtc-sdk:android:125.6422.06.1'
-//    okhttp = 'com.squareup.okhttp3:okhttp:4.12.0'
-//    retrofit = 'com.squareup.retrofit2:retrofit:2.11.0'
-
     // webrtc
     deps.webrtc = 'io.github.webrtc-sdk:android:125.6422.06.1'
+
+    deps.okhttp = 'com.squareup.okhttp3:okhttp:4.12.0'
+    deps.retrofit = 'com.squareup.retrofit2:retrofit:2.11.0'
+    deps.retrofit_gson_converter = 'com.squareup.retrofit2:converter-gson:2.11.0'
+
+    deps.coroutines_core = 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1'
+    deps.coroutines_android = 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1'
 }
