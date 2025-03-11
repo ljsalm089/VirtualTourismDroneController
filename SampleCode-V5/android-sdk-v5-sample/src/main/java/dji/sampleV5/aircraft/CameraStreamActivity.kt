@@ -6,6 +6,7 @@ import android.Manifest
 import android.app.Activity
 import android.os.Bundle
 import android.os.SystemClock
+import android.provider.MediaStore.Audio
 import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -26,6 +27,7 @@ import okhttp3.OkHttpClient
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
+import org.webrtc.AudioSource
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
 import org.webrtc.DataChannel
@@ -44,6 +46,7 @@ import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
+import org.webrtc.VideoCapturer
 import org.webrtc.VideoFrame
 import org.webrtc.VideoSource
 import retrofit2.Retrofit
@@ -55,7 +58,9 @@ import retrofit2.http.Path
 import java.io.FileOutputStream
 import java.net.InetSocketAddress
 import java.net.Proxy
+import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 
 val permissions = listOf(
@@ -66,12 +71,20 @@ val permissions = listOf(
 
 //val TAG = "MainActivity"
 
-val baseUrl = "http://10.96.231.121:7080/"
+//val baseUrl = "http://10.96.231.121:7080/"
+//val proxyHost = "192.168.142.127"
+//val proxyPort = 8888
+//val testAtHome = false
 
-val needProxy = false
 
-val proxtHost = "192.168.142.127"
+val baseUrl = "http://192.168.1.7:7080/"
+val proxyHost = "192.168.1.7"
 val proxyPort = 8888
+val testAtHome = true
+
+val needProxy = true
+
+
 
 val endPoint = "test"
 
@@ -85,6 +98,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     var frameWriter: FileOutputStream? = null
 
     lateinit var videoSource: VideoSource
+    lateinit var audioSource: AudioSource
 
     val TAG = "CameraStreamActivity"
 
@@ -122,7 +136,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private lateinit var peerConnection: PeerConnection
 
-    private lateinit var capturer: DJIVideoCapturer
+    private lateinit var capturer: VideoCapturer
 
     private val eglBase = EglBase.create()
 
@@ -141,6 +155,9 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         binding.btnEnd.setOnClickListener {
             stopPublishing()
         }
+        binding.btnSend.setOnClickListener {
+            sendDataToEnd()
+        }
 
 
         //allows event handling when stuff happens to the surface view such as is created, changed and destroyed. (every frame of teh camera will change it)
@@ -148,7 +165,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         val client = OkHttpClient.Builder().apply {
             if (needProxy) {
-                this.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxtHost, proxyPort)))
+                this.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
             }
         }.build()
         retrofit = Retrofit.Builder()
@@ -157,6 +174,42 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             .client(client)
             .build()
 
+    }
+
+    private fun sendDataToEnd() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            if (this@CameraStreamActivity::peerConnection.isInitialized
+                && peerConnection.iceConnectionState() == PeerConnection.IceConnectionState.COMPLETED
+            ) {
+                Log.d(TAG, "Current connection is valid")
+
+                val dataChannel =
+                    if (null != binding.btnSend.tag && binding.btnSend.tag is DataChannel) {
+                        binding.btnSend.tag as DataChannel
+                    } else {
+                        val init = DataChannel.Init()
+                        init.ordered = true
+                        val channel = peerConnection.createDataChannel("StateFeedBack", init)
+                        binding.btnSend.tag = channel
+                        channel
+                    }
+                val map = mapOf(Pair("Key", "test"), Pair("id", Random(SystemClock.elapsedRealtime()).nextInt(100000)))
+                if (dataChannel.send(
+                        DataChannel.Buffer(
+                            ByteBuffer.wrap(
+                                Gson().toJson(map).toByteArray()
+                            ), false
+                        )
+                    )
+                ) {
+                    launch(Dispatchers.Main) {
+                        showMessage("Send data through data channel successfully")
+                    }
+                }
+            } else {
+                Log.d(TAG, "Current connection is invalid")
+            }
+        }
     }
 
     private fun publish() {
@@ -172,11 +225,12 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         Pair("audioRtcPort", 5003),
                         Pair("videoPort", 5004),
                         Pair("videoRtcPort", 5005),
-                        Pair("dataport", 5006)
+                        Pair("dataPort", 5006)
                     ))
                 )
                 retrofit.create(IRequest::class.java).createEndPoint(body)
                 launch(Dispatchers.Main) {
+                    showMessage("Create endpoint successfully")
                     initializeWebRTC()
                 }
             } catch (e: Exception) {
@@ -187,6 +241,13 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun stopPublishing() {
+        binding.btnSend.tag = null
+        if (this::videoSource.isInitialized) {
+            this.videoSource.dispose()
+        }
+        if (this::audioSource.isInitialized) {
+            this.audioSource.dispose()
+        }
         if (this::capturer.isInitialized) {
             capturer.dispose()
         }
@@ -276,31 +337,37 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun drawFrameOnSurface(frameData: ByteArray, offset: Int, width: Int, height: Int) {
-        if (!this::capturer.isInitialized || !capturer.isCapturing || null == capturer.capturerObserver) return
+        if (!this::capturer.isInitialized) {
+            return
+        }
 
-        surface?.let { surface ->
-            try {
-                Log.d(TAG, "starting the videoFrame making")
-                val nv21Buffer: NV21Buffer = NV21Buffer(frameData, width, height, null)
-                //ConversionUtils.convertARGB32ToI420(frameData, attr.width, attr.height)
-                Log.d(TAG, "buffer created: ")
-                val timestampNS: Long =
-                    TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime())
-                Log.d(TAG, "timestamp: $timestampNS")
-                //val videoFrame = VideoFrame(i420Buffer, 0, timestampNS)
-                val videoFrame = VideoFrame(nv21Buffer, 0, timestampNS)
-                Log.d(TAG, "videoFrame made")
-                capturer.capturerObserver?.onFrameCaptured(videoFrame)
-                Log.d(TAG, "sent frame to videoSource")
-                videoFrame.release()
-                Log.d(TAG, "release videoFrame")
-            } catch (e: Exception) {
-                Log.e("CameraStream", "Failed to draw frame/set videoFrame: ${e.message}")
-            }
-        } ?: Log.e(
-            "CameraStream",
-            "Surface is null"
-        )
+        (capturer as? DJIVideoCapturer)?.let {
+            if (!it.isCapturing || null == it.capturerObserver) return
+
+            surface?.let { surface ->
+                try {
+                    Log.d(TAG, "starting the videoFrame making")
+                    val nv21Buffer: NV21Buffer = NV21Buffer(frameData, width, height, null)
+                    //ConversionUtils.convertARGB32ToI420(frameData, attr.width, attr.height)
+                    Log.d(TAG, "buffer created: ")
+                    val timestampNS: Long =
+                        TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime())
+                    Log.d(TAG, "timestamp: $timestampNS")
+                    //val videoFrame = VideoFrame(i420Buffer, 0, timestampNS)
+                    val videoFrame = VideoFrame(nv21Buffer, 0, timestampNS)
+                    Log.d(TAG, "videoFrame made")
+                    it.capturerObserver!!.onFrameCaptured(videoFrame)
+                    Log.d(TAG, "sent frame to videoSource")
+                    videoFrame.release()
+                    Log.d(TAG, "release videoFrame")
+                } catch (e: Exception) {
+                    Log.e("CameraStream", "Failed to draw frame/set videoFrame: ${e.message}")
+                }
+            } ?: Log.e(
+                "CameraStream",
+                "Surface is null"
+            )
+        }
     }
 
     override fun onDestroy() {
@@ -353,18 +420,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .createPeerConnectionFactory()
 
-        // TODO write custom VideoCapturer to push the video to the server
-        capturer = DJIVideoCapturer()
-
-        videoSource = peerConnectionFactory.createVideoSource(capturer.isScreencast)
-        capturer.initialize(
-            SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext),
-            applicationContext,
-            videoSource.capturerObserver
-        )
-        capturer.startCapture(1280, 720, 30)
-        val localVideoTrack = peerConnectionFactory.createVideoTrack("videoTrack", videoSource)
-
         val iceServers: MutableList<IceServer> = ArrayList()
         iceServers.add(IceServer("stun:stun.l.google.com:19302"))
 
@@ -414,11 +469,64 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             showToast("Create peer connection error")
             return
         }
+
         this.peerConnection = connection
+
+        if (!testAtHome) {
+            // TODO write custom VideoCapturer to push the video to the server
+            capturer = DJIVideoCapturer()
+            videoSource = peerConnectionFactory.createVideoSource(capturer.isScreencast)
+        } else {
+            // Create AudioSource with constraints
+            val mediaConstraints = MediaConstraints()
+            mediaConstraints.mandatory.add(
+                MediaConstraints.KeyValuePair(
+                    "googEchoCancellation",
+                    "true"
+                )
+            )
+            mediaConstraints.mandatory.add(
+                MediaConstraints.KeyValuePair(
+                    "googNoiseSuppression",
+                    "true"
+                )
+            )
+            // TODO write custom VideoCapturer to push the video to the server
+            var videoCapturer = createCameraCapturer(Camera2Enumerator(this))
+            if (null == videoCapturer) {
+                Log.e(TAG, "unable to create the video capturer!")
+                return
+            }
+            this.capturer = videoCapturer
+
+            audioSource = peerConnectionFactory.createAudioSource(mediaConstraints)
+            videoSource = peerConnectionFactory.createVideoSource(capturer.isScreencast)
+            var audioTrack =
+                peerConnectionFactory.createAudioTrack("ARDAMSa0", audioSource)
+
+            peerConnection.addTrack(audioTrack, listOf("audioId"))
+        }
+
+        capturer.initialize(
+            SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext),
+            applicationContext,
+            videoSource.capturerObserver
+        )
+        capturer.startCapture(1280, 720, 30)
+
+        val localVideoTrack = peerConnectionFactory.createVideoTrack("videoTrack", videoSource)
+
         this.peerConnection.let {
             val mediaStream = peerConnectionFactory.createLocalMediaStream("mediaStream")
             mediaStream.addTrack(localVideoTrack)
             peerConnection.addTrack(localVideoTrack, listOf("streamId"))
+
+            var init = DataChannel.Init()
+            init.ordered = true
+            init.protocol = "json"
+            init.id = 3
+            var dataChannel = peerConnection.createDataChannel("StateFeedBack", init)
+            binding.btnSend.tag = dataChannel
 
             peerConnection.createOffer(object : SdpObserver {
                 override fun onCreateSuccess(p0: SessionDescription?) {
