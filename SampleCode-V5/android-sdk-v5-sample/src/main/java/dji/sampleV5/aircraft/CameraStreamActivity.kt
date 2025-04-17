@@ -1,22 +1,21 @@
 package dji.sampleV5.aircraft
 
-//webrtc things imports
-//import org.otago.hci.videosource.android.databinding.ActivityMainBinding //unresolved reference: otago
 import android.Manifest
 import android.app.Activity
 import android.os.Bundle
 import android.os.SystemClock
-import android.provider.MediaStore.Audio
 import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.PermissionChecker
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.lifecycle.lifecycleScope
 import com.google.gson.Gson
 import dji.sampleV5.aircraft.databinding.ActivityCameraStreamBinding
+import dji.sampleV5.aircraft.models.CameraStreamVM
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
@@ -60,7 +59,6 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
-import kotlin.random.Random
 
 
 val permissions = listOf(
@@ -71,18 +69,18 @@ val permissions = listOf(
 
 //val TAG = "MainActivity"
 
-//val baseUrl = "http://10.96.231.121:7080/"
-//val proxyHost = "192.168.142.127"
-//val proxyPort = 8888
+val baseUrl = "http://10.96.231.121:7080/"
+val proxyHost = "192.168.142.127"
+val proxyPort = 8888
 //val testAtHome = false
 
 
-val baseUrl = "http://192.168.1.7:7080/"
-val proxyHost = "192.168.1.7"
-val proxyPort = 8888
+//val baseUrl = "http://192.168.1.7:7080/"
+//val proxyHost = "192.168.1.7"
+//val proxyPort = 8888
 val testAtHome = true
 
-val needProxy = true
+val needProxy = false
 
 
 
@@ -103,6 +101,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     val TAG = "CameraStreamActivity"
 
     private lateinit var binding: ActivityCameraStreamBinding
+
+    private val viewModel: CameraStreamVM by viewModels()
 
     private val frameListener = object : ICameraStreamManager.CameraFrameListener {
         override fun onFrame(
@@ -193,7 +193,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         binding.btnSend.tag = channel
                         channel
                     }
-                val map = mapOf(Pair("Key", "test"), Pair("id", Random(SystemClock.elapsedRealtime()).nextInt(100000)))
+                val map = mapOf(Pair("Key", "test"), Pair("id", System.currentTimeMillis()))
                 if (dataChannel.send(
                         DataChannel.Buffer(
                             ByteBuffer.wrap(
@@ -401,7 +401,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         if (requestCode == 100) {
             if (hasPermission()) {
                 // continue
-                initializeWebRTC()
+//                initializeWebRTC()
             } else {
                 showToast("No enough permissions")
             }
