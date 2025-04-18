@@ -125,6 +125,7 @@ dependencies {
     implementation deps.recyclerview
     implementation deps.legacySupport
     implementation deps.lifecycleViewModel
+    implementation deps.lifecycleViewModel_ktx
     implementation deps.lifecycleLiveData
     implementation deps.leakcanary
     implementation deps.glide
