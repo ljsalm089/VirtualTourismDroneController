@@ -18,7 +18,6 @@ import dji.sampleV5.aircraft.webrtc.EVENT_RECEIVED_DATA
 import dji.sampleV5.aircraft.webrtc.VIDEO_PUBLISHER
 import dji.sampleV5.aircraft.webrtc.WebRtcEvent
 import dji.sampleV5.aircraft.webrtc.WebRtcManager
-import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.functions.Consumer
 import org.webrtc.AudioSource
@@ -69,9 +68,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     fun initialize(application: Application) {
         this.application = application
         webRtcManager = WebRtcManager(scope = viewModelScope, application)
-        eventDisposable =
-            webRtcManager.webRtcEventObservable.observeOn(AndroidSchedulers.mainThread())
-                .subscribe(this)
+        eventDisposable = webRtcManager.webRtcEventObservable.subscribe(this)
     }
 
     fun clickPublishBtn() {

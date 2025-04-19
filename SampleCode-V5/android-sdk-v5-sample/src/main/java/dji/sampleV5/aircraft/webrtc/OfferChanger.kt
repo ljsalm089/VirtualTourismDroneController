@@ -163,10 +163,10 @@ interface IOfferRequest {
     // already add gson converter to the retrofit,
     // all type except RequestBody for body will be converted to json
     @POST
-    suspend fun createEndPoint(@Url url: String, @Body body: Any): RequestBody
+    suspend fun createEndPoint(@Url url: String, @Body body: Any): ResponseBody
 
     @DELETE
-    suspend fun destroyEndPoint(@Url url: String): RequestBody
+    suspend fun destroyEndPoint(@Url url: String): ResponseBody
 
 
 }

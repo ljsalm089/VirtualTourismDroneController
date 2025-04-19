@@ -2,6 +2,7 @@ package dji.sampleV5.aircraft.webrtc
 
 import android.app.Application
 import android.util.Log
+import com.google.gson.Gson
 import io.reactivex.rxjava3.subjects.PublishSubject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -300,7 +301,6 @@ class WebRtcConnection(
         if (null == transmitDataChannel) {
             val init = DataChannel.Init()
             init.ordered = true
-            init.id = 1
             init.protocol = "json"
             transmitDataChannel = connection.createDataChannel("DronePosFeedBack", init)
             transmitDataChannel?.registerObserver(object : DataChannel.Observer {
@@ -318,7 +318,10 @@ class WebRtcConnection(
                 }
             })
         }
-        transmitDataChannel?.send(DataChannel.Buffer(ByteBuffer.wrap(data.toByteArray()), false))
+        val sendData = Gson().toJson(hashMapOf(
+            Pair("msg", data)
+        ))
+        transmitDataChannel?.send(DataChannel.Buffer(ByteBuffer.wrap(sendData.toByteArray()), false))
     }
 
     fun disconnect() {
