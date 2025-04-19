@@ -1,12 +1,14 @@
 package dji.sampleV5.aircraft
 
-import android.Manifest
 import android.app.Activity
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -18,24 +20,20 @@ import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.webrtc.EglBase
 import org.webrtc.NV21Buffer
+import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoCapturer
 import org.webrtc.VideoFrame
-import java.io.FileOutputStream
+import org.webrtc.VideoTrack
 import java.util.Random
 import java.util.concurrent.TimeUnit
 
+private val TAG = "CameraStreamActivity"
 
 class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private var surface: Surface? = null
-
-    private val cameraIndex =
-        ComponentIndexType.LEFT_OR_MAIN // which camera we end up using MAY NEED TO TWEAK IF I HAVE THE WRONG CAM
-
-    var frameWriter: FileOutputStream? = null
-
-    val TAG = "CameraStreamActivity"
 
     private val permissionReqCode = 500 + Random().nextInt(100)
 
@@ -43,15 +41,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private val viewModel: CameraStreamVM by viewModels()
 
-    private val frameListener = object : ICameraStreamManager.CameraFrameListener {
-        override fun onFrame(
-            frameData: ByteArray,
-            offset: Int,
-            length: Int,
-            width: Int,
-            height: Int,
-            format: ICameraStreamManager.FrameFormat
-        ) {
+    private val frameListener =
+        ICameraStreamManager.CameraFrameListener { frameData, offset, length, width, height, format ->
             Log.d(
                 "CameraStream",
                 "Frame data size: " + frameData.size + " - (first 10 bytes): ${
@@ -59,23 +50,16 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 }"
             )
             modifyGreenChannel(frameData, offset, width, height)
-            Log.d("CameraStream", "")
+
             // draws the frame into the SurfaceView
-            drawFrameOnSurface(
-                frameData,
-                offset,
-                width,
-                height
-            )
+            drawFrameOnSurface(frameData, offset, width, height)
         }
-    }
 
-    private lateinit var capturer: VideoCapturer
-
-    override fun onCreate(savedInstanceState: Bundle?) { //
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCameraStreamBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        viewModel.initialize(this.application)
 
         binding.btnStart.setOnClickListener {
             viewModel.clickPublishBtn()
@@ -83,6 +67,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         binding.btnEnd.setOnClickListener {
             viewModel.stopPublish()
+
+            releaseSurfaceView()
         }
         binding.btnSend.setOnClickListener {
             viewModel.sendData()
@@ -96,9 +82,42 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         viewModel.message.observe(this) {
             showMessage(it)
         }
+        viewModel.videoTrackUpdate.observe(this) {
+            if (it.useDroneCamera) {
+                initializeVideoFromDrone(it.videoCapturer)
+            } else {
+                attachVideoToSurface(it.eglBase, it.videoTrack)
+            }
+        }
+    }
 
-        //allows event handling when stuff happens to the surface view such as is created, changed and destroyed. (every frame of teh camera will change it)
-        binding.surfaceView.holder.addCallback(this)
+    private fun attachVideoToSurface(eglBase: EglBase, videoTrack: VideoTrack) {
+        val surfaceView = SurfaceViewRenderer(this)
+        binding.root.addView(
+            surfaceView,
+            0,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        surfaceView.init(eglBase.eglBaseContext, null)
+        surfaceView.setMirror(true)
+        videoTrack.addSink(surfaceView)
+    }
+
+    private fun initializeVideoFromDrone(videoSource: VideoCapturer) {
+        val surfaceView = SurfaceView(this)
+        binding.root.addView(
+            surfaceView,
+            0,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        surfaceView.tag = videoSource
+        surfaceView.holder.addCallback(this)
     }
 
     private fun showMessage(msg: String) {
@@ -110,15 +129,13 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun surfaceCreated(holder: SurfaceHolder) {
         surface = holder.surface
         MediaDataCenter.getInstance().cameraStreamManager.addFrameListener(
-            cameraIndex,
+            ComponentIndexType.LEFT_OR_MAIN,
             ICameraStreamManager.FrameFormat.NV21,
             frameListener
         )
-
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        //if we need to handle rotations and other stuff
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -149,12 +166,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 Log.d("CameraStream", "i: $i")
             }
 
-            // Safety check for array bounds
-            if (i + 1 >= frameData.size) {
-                Log.w("CameraStream", "Index out of bounds at i: $i")
-                break
-            }
-
             // Get and modify green channel
             val greenValue = frameData[i + 1]
             val newGreen = (greenValue + 20).coerceAtMost(0xFE).toByte()
@@ -170,36 +181,39 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun drawFrameOnSurface(frameData: ByteArray, offset: Int, width: Int, height: Int) {
-        if (!this::capturer.isInitialized) {
+        if (binding.root.getChildAt(0) !is SurfaceView) {
             return
         }
 
-        (capturer as? DJIVideoCapturer)?.let {
+        (binding.root.getChildAt(0).tag as? DJIVideoCapturer)?.let {
             if (!it.isCapturing || null == it.capturerObserver) return
 
-            surface?.let { surface ->
-                try {
-                    Log.d(TAG, "starting the videoFrame making")
-                    val nv21Buffer: NV21Buffer = NV21Buffer(frameData, width, height, null)
-                    //ConversionUtils.convertARGB32ToI420(frameData, attr.width, attr.height)
-                    Log.d(TAG, "buffer created: ")
-                    val timestampNS: Long =
-                        TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime())
-                    Log.d(TAG, "timestamp: $timestampNS")
-                    //val videoFrame = VideoFrame(i420Buffer, 0, timestampNS)
-                    val videoFrame = VideoFrame(nv21Buffer, 0, timestampNS)
-                    Log.d(TAG, "videoFrame made")
-                    it.capturerObserver!!.onFrameCaptured(videoFrame)
-                    Log.d(TAG, "sent frame to videoSource")
-                    videoFrame.release()
-                    Log.d(TAG, "release videoFrame")
-                } catch (e: Exception) {
-                    Log.e("CameraStream", "Failed to draw frame/set videoFrame: ${e.message}")
+            surface?.let { _ ->
+                lifecycleScope.launch(Dispatchers.Main) {
+                    try {
+                        val nv21Buffer = NV21Buffer(frameData, width, height, null)
+                        val timestampNS: Long =
+                            TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime())
+                        val videoFrame = VideoFrame(nv21Buffer, 0, timestampNS)
+                        it.capturerObserver!!.onFrameCaptured(videoFrame)
+                        videoFrame.release()
+                    } catch (e: Exception) {
+                        Log.e("CameraStream", "Failed to draw frame/set videoFrame: ${e.message}")
+                    }
                 }
             } ?: Log.e(
                 "CameraStream",
                 "Surface is null"
             )
+        }
+    }
+
+    private fun releaseSurfaceView() {
+        if (binding.root.getChildAt(0) is SurfaceView) {
+            val surfaceView = binding.root.getChildAt(0) as SurfaceView
+            binding.root.removeView(surfaceView)
+
+            (surfaceView as? SurfaceViewRenderer)?.release()
         }
     }
 
@@ -210,15 +224,10 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         MediaDataCenter.getInstance().cameraStreamManager.removeFrameListener(frameListener)
     }
 
-    override fun onPause() {
-        super.onPause()
-        frameWriter?.close()
-    }
-
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
-        grantResults: IntArray
+        grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == permissionReqCode) {

@@ -24,10 +24,12 @@ import io.reactivex.rxjava3.functions.Consumer
 import org.webrtc.AudioSource
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
+import org.webrtc.EglBase
 import org.webrtc.MediaConstraints
 import org.webrtc.SurfaceTextureHelper
 import org.webrtc.VideoCapturer
 import org.webrtc.VideoSource
+import org.webrtc.VideoTrack
 
 
 private const val TAG = "CameraStreamVM"
@@ -40,15 +42,22 @@ private val permissions = listOf(
     Manifest.permission.ACCESS_NETWORK_STATE
 )
 
-class CameraStreamVM(val application: Application) : ViewModel(), Consumer<WebRtcEvent> {
+data class VideoTrackAdded(
+    val eglBase: EglBase,
+    val videoTrack: VideoTrack,
+    val videoCapturer: VideoCapturer,
+    val useDroneCamera: Boolean,
+)
 
-    private var webRtcManager: WebRtcManager = WebRtcManager(scope = viewModelScope, application)
-    private val eventDisposable: Disposable =
-        webRtcManager.webRtcEventObservable.observeOn(AndroidSchedulers.mainThread())
-            .subscribe(this)
+class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
+
+    private lateinit var webRtcManager: WebRtcManager
+    private lateinit var eventDisposable: Disposable
+    private lateinit var application: Application
 
     val requestPermissions = MutableLiveData<List<String>>()
     val message = MutableLiveData<String>()
+    val videoTrackUpdate = MutableLiveData<VideoTrackAdded>()
 
     private var videoCapturer: VideoCapturer? = null
 
@@ -56,6 +65,14 @@ class CameraStreamVM(val application: Application) : ViewModel(), Consumer<WebRt
     private var audioSource: AudioSource? = null
 
     private var tmpPermission = listOf<String>()
+
+    fun initialize(application: Application) {
+        this.application = application
+        webRtcManager = WebRtcManager(scope = viewModelScope, application)
+        eventDisposable =
+            webRtcManager.webRtcEventObservable.observeOn(AndroidSchedulers.mainThread())
+                .subscribe(this)
+    }
 
     fun clickPublishBtn() {
         tmpPermission = getRequiredPermissions()
@@ -105,7 +122,11 @@ class CameraStreamVM(val application: Application) : ViewModel(), Consumer<WebRt
             Log.e(TAG, "Failed to create a connection")
         } else if (EVENT_EXCHANGE_OFFER_ERROR == t.event) {
             if (t.data is Exception) {
-                Log.e(TAG, "Got an error while exchanging the offer with server", t.data as? Exception)
+                Log.e(
+                    TAG,
+                    "Got an error while exchanging the offer with server",
+                    t.data as? Exception
+                )
             } else {
                 // string
                 Log.e(TAG, "Got an error while exchanging the offer with server: ${t.data}")
@@ -162,6 +183,7 @@ class CameraStreamVM(val application: Application) : ViewModel(), Consumer<WebRt
             audioSource = connectionInfo.connectionFactory.createAudioSource(mediaConstraints)
             val audioTrack =
                 connectionInfo.connectionFactory.createAudioTrack("ARDAMSa0", audioSource)
+
             connectionInfo.connection.addTrack(audioTrack, listOf("audioId"))
         }
 
@@ -172,7 +194,11 @@ class CameraStreamVM(val application: Application) : ViewModel(), Consumer<WebRt
             )
             it.startCapture(1280, 720, 30)
 
-            val localVideoTrack = connectionInfo.connectionFactory.createVideoTrack("videoTrack", videoSource)
+            val localVideoTrack =
+                connectionInfo.connectionFactory.createVideoTrack("videoTrack", videoSource)
+            videoTrackUpdate.postValue(
+                VideoTrackAdded(connectionInfo.eglBase, localVideoTrack, it, useDroneCamera)
+            )
             connectionInfo.connection.addTrack(localVideoTrack, listOf("streamId"))
         }
     }
@@ -194,7 +220,11 @@ class CameraStreamVM(val application: Application) : ViewModel(), Consumer<WebRt
     private fun getRequiredPermissions(): List<String> {
         val reqPermissions = ArrayList<String>()
         for (permission in permissions) {
-            if (PermissionChecker.checkSelfPermission(application, permission) != PERMISSION_GRANTED) {
+            if (PermissionChecker.checkSelfPermission(
+                    application,
+                    permission
+                ) != PERMISSION_GRANTED
+            ) {
                 reqPermissions.add(permission)
             }
         }

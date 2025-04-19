@@ -19,15 +19,15 @@ private const val TAG = "OfferExchanger"
 
 private const val iceServerUrl = "stun:stun.l.google.com:1930";
 
-private const val serverProtocolAndHost = "http://10.96.231.121"
+private const val serverProtocolAndHost = "http://192.168.1.16"
 
 private const val whipPort = 7080
 
 private const val whepPort = 7090
 
-private const val needProxy = false
+private const val needProxy = true
 
-private const val proxyHost = "127.0.0.1"
+private const val proxyHost = "192.168.1.16"
 
 private const val proxyPort = 8888
 
