@@ -10,10 +10,7 @@ import android.view.SurfaceHolder
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.PermissionChecker
-import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.lifecycle.lifecycleScope
-import com.google.gson.Gson
 import dji.sampleV5.aircraft.databinding.ActivityCameraStreamBinding
 import dji.sampleV5.aircraft.models.CameraStreamVM
 import dji.sdk.keyvalue.value.common.ComponentIndexType
@@ -21,70 +18,13 @@ import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.ResponseBody
-import org.webrtc.AudioSource
-import org.webrtc.Camera2Enumerator
-import org.webrtc.CameraVideoCapturer
-import org.webrtc.DataChannel
-import org.webrtc.DefaultVideoDecoderFactory
-import org.webrtc.DefaultVideoEncoderFactory
-import org.webrtc.EglBase
-import org.webrtc.IceCandidate
-import org.webrtc.MediaConstraints
-import org.webrtc.MediaStream
 import org.webrtc.NV21Buffer
-import org.webrtc.PeerConnection
-import org.webrtc.PeerConnection.IceServer
-import org.webrtc.PeerConnection.Observer
-import org.webrtc.PeerConnection.RTCConfiguration
-import org.webrtc.PeerConnectionFactory
-import org.webrtc.SdpObserver
-import org.webrtc.SessionDescription
-import org.webrtc.SurfaceTextureHelper
 import org.webrtc.VideoCapturer
 import org.webrtc.VideoFrame
-import org.webrtc.VideoSource
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.POST
-import retrofit2.http.Path
 import java.io.FileOutputStream
-import java.net.InetSocketAddress
-import java.net.Proxy
-import java.nio.ByteBuffer
+import java.util.Random
 import java.util.concurrent.TimeUnit
 
-
-val permissions = listOf(
-    Manifest.permission.CAMERA,
-    Manifest.permission.RECORD_AUDIO,
-    Manifest.permission.ACCESS_NETWORK_STATE
-)
-
-//val TAG = "MainActivity"
-
-val baseUrl = "http://10.96.231.121:7080/"
-val proxyHost = "192.168.142.127"
-val proxyPort = 8888
-//val testAtHome = false
-
-
-//val baseUrl = "http://192.168.1.7:7080/"
-//val proxyHost = "192.168.1.7"
-//val proxyPort = 8888
-val testAtHome = true
-
-val needProxy = false
-
-
-
-val endPoint = "test"
 
 class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
@@ -95,10 +35,9 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     var frameWriter: FileOutputStream? = null
 
-    lateinit var videoSource: VideoSource
-    lateinit var audioSource: AudioSource
-
     val TAG = "CameraStreamActivity"
+
+    private val permissionReqCode = 500 + Random().nextInt(100)
 
     private lateinit var binding: ActivityCameraStreamBinding
 
@@ -131,17 +70,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-
-    private lateinit var peerConnectionFactory: PeerConnectionFactory
-
-    private lateinit var peerConnection: PeerConnection
-
     private lateinit var capturer: VideoCapturer
-
-    private val eglBase = EglBase.create()
-
-    private lateinit var retrofit: Retrofit
-
 
     override fun onCreate(savedInstanceState: Bundle?) { //
         super.onCreate(savedInstanceState)
@@ -149,127 +78,31 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         setContentView(binding.root)
 
         binding.btnStart.setOnClickListener {
-            publish()
+            viewModel.clickPublishBtn()
         }
 
         binding.btnEnd.setOnClickListener {
-            stopPublishing()
+            viewModel.stopPublish()
         }
         binding.btnSend.setOnClickListener {
-            sendDataToEnd()
+            viewModel.sendData()
         }
 
+        viewModel.requestPermissions.observe(this) {
+            if (it.isNotEmpty()) {
+                requestPermissions(it.toTypedArray(), permissionReqCode)
+            }
+        }
+        viewModel.message.observe(this) {
+            showMessage(it)
+        }
 
         //allows event handling when stuff happens to the surface view such as is created, changed and destroyed. (every frame of teh camera will change it)
         binding.surfaceView.holder.addCallback(this)
-
-        val client = OkHttpClient.Builder().apply {
-            if (needProxy) {
-                this.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-            }
-        }.build()
-        retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .addConverterFactory(GsonConverterFactory.create(Gson()))
-            .client(client)
-            .build()
-
-    }
-
-    private fun sendDataToEnd() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            if (this@CameraStreamActivity::peerConnection.isInitialized
-                && peerConnection.iceConnectionState() == PeerConnection.IceConnectionState.COMPLETED
-            ) {
-                Log.d(TAG, "Current connection is valid")
-
-                val dataChannel =
-                    if (null != binding.btnSend.tag && binding.btnSend.tag is DataChannel) {
-                        binding.btnSend.tag as DataChannel
-                    } else {
-                        val init = DataChannel.Init()
-                        init.ordered = true
-                        val channel = peerConnection.createDataChannel("StateFeedBack", init)
-                        binding.btnSend.tag = channel
-                        channel
-                    }
-                val map = mapOf(Pair("Key", "test"), Pair("id", System.currentTimeMillis()))
-                if (dataChannel.send(
-                        DataChannel.Buffer(
-                            ByteBuffer.wrap(
-                                Gson().toJson(map).toByteArray()
-                            ), false
-                        )
-                    )
-                ) {
-                    launch(Dispatchers.Main) {
-                        showMessage("Send data through data channel successfully")
-                    }
-                }
-            } else {
-                Log.d(TAG, "Current connection is invalid")
-            }
-        }
-    }
-
-    private fun publish() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val body = hashMapOf(
-                    Pair("id", endPoint),
-                    Pair("room", 1234),
-                    Pair("secret", "adminpwd"),
-                    Pair("recipient", hashMapOf(
-                        Pair("host", "127.0.0.1"),
-                        Pair("audioPort", 5002),
-                        Pair("audioRtcPort", 5003),
-                        Pair("videoPort", 5004),
-                        Pair("videoRtcPort", 5005),
-                        Pair("dataPort", 5006)
-                    ))
-                )
-                retrofit.create(IRequest::class.java).createEndPoint(body)
-                launch(Dispatchers.Main) {
-                    showMessage("Create endpoint successfully")
-                    initializeWebRTC()
-                }
-            } catch (e: Exception) {
-                Log.d(TAG, "Failed to create the endpoint: $e")
-                showMessage("Failed to create the endpoint")
-            }
-        }
-    }
-
-    private fun stopPublishing() {
-        binding.btnSend.tag = null
-        if (this::videoSource.isInitialized) {
-            this.videoSource.dispose()
-        }
-        if (this::audioSource.isInitialized) {
-            this.audioSource.dispose()
-        }
-        if (this::capturer.isInitialized) {
-            capturer.dispose()
-        }
-        if (this::peerConnection.isInitialized) {
-            peerConnection.dispose()
-        }
-        if (this::peerConnectionFactory.isInitialized) {
-            peerConnectionFactory.dispose()
-        }
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                retrofit.create(IRequest::class.java).destroyEndPoint(endPoint)
-                showMessage("Destroy endpoint successfully")
-            } catch (e: Exception) {
-                Log.d(TAG, "Failed to destroy the endpoint: $e")
-                showMessage("Failed to destroy the endpoint")
-            }
-        }
     }
 
     private fun showMessage(msg: String) {
-        lifecycleScope.launch (Dispatchers.Main) {
+        lifecycleScope.launch(Dispatchers.Main) {
             showToast(msg)
         }
     }
@@ -372,6 +205,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         super.onDestroy()
+
         // Cleanup
         MediaDataCenter.getInstance().cameraStreamManager.removeFrameListener(frameListener)
     }
@@ -381,244 +215,19 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         frameWriter?.close()
     }
 
-
-    //webRTC and co from Jason down here
-    private fun hasPermission(): Boolean {
-        for (permission in permissions) {
-            if (PermissionChecker.checkSelfPermission(this, permission) != PERMISSION_GRANTED) {
-                return false;
-            }
-        }
-        return true
-    }
-
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100) {
-            if (hasPermission()) {
-                // continue
-//                initializeWebRTC()
-            } else {
-                showToast("No enough permissions")
-            }
+        if (requestCode == permissionReqCode) {
+            viewModel.onRequestPermission(permissions.toList())
         }
     }
 
-    private fun initializeWebRTC() {
-        var option: PeerConnectionFactory.InitializationOptions =
-            PeerConnectionFactory.InitializationOptions.builder(application)
-                .setEnableInternalTracer(true)
-                .createInitializationOptions()
-        PeerConnectionFactory.initialize(option)
-
-        peerConnectionFactory = PeerConnectionFactory.builder()
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
-            .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
-            .createPeerConnectionFactory()
-
-        val iceServers: MutableList<IceServer> = ArrayList()
-        iceServers.add(IceServer("stun:stun.l.google.com:19302"))
-
-        val rtcConfig = RTCConfiguration(iceServers)
-        rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
-
-        val connection =
-            peerConnectionFactory.createPeerConnection(rtcConfig, object : Observer {
-                override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
-                    Log.d(TAG, "onSignalingChange: $p0")
-                }
-
-                override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
-                    Log.d(TAG, "ICE Connection State: $p0")
-                }
-
-                override fun onIceConnectionReceivingChange(p0: Boolean) {
-                    Log.d(TAG, "onIceConnectionReceivingChange: $p0")
-                }
-
-                override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
-                    Log.d(TAG, "onIceGatheringChange: $p0")
-                }
-
-                override fun onIceCandidate(p0: IceCandidate?) {
-                    Log.d(TAG, "ICE Candidate: ${p0?.sdp}")
-                }
-
-                override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {
-                    Log.d(TAG, "onIceCandidatesRemoved")
-                }
-
-                override fun onAddStream(p0: MediaStream?) {
-                }
-
-                override fun onRemoveStream(p0: MediaStream?) {
-                }
-
-                override fun onDataChannel(p0: DataChannel?) {
-                }
-
-                override fun onRenegotiationNeeded() {
-                    Log.d(TAG, "onRenogotiationNeeded")
-                }
-            })
-        if (null == connection) {
-            showToast("Create peer connection error")
-            return
-        }
-
-        this.peerConnection = connection
-
-        if (!testAtHome) {
-            // TODO write custom VideoCapturer to push the video to the server
-            capturer = DJIVideoCapturer()
-            videoSource = peerConnectionFactory.createVideoSource(capturer.isScreencast)
-        } else {
-            // Create AudioSource with constraints
-            val mediaConstraints = MediaConstraints()
-            mediaConstraints.mandatory.add(
-                MediaConstraints.KeyValuePair(
-                    "googEchoCancellation",
-                    "true"
-                )
-            )
-            mediaConstraints.mandatory.add(
-                MediaConstraints.KeyValuePair(
-                    "googNoiseSuppression",
-                    "true"
-                )
-            )
-            // TODO write custom VideoCapturer to push the video to the server
-            var videoCapturer = createCameraCapturer(Camera2Enumerator(this))
-            if (null == videoCapturer) {
-                Log.e(TAG, "unable to create the video capturer!")
-                return
-            }
-            this.capturer = videoCapturer
-
-            audioSource = peerConnectionFactory.createAudioSource(mediaConstraints)
-            videoSource = peerConnectionFactory.createVideoSource(capturer.isScreencast)
-            var audioTrack =
-                peerConnectionFactory.createAudioTrack("ARDAMSa0", audioSource)
-
-            peerConnection.addTrack(audioTrack, listOf("audioId"))
-        }
-
-        capturer.initialize(
-            SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext),
-            applicationContext,
-            videoSource.capturerObserver
-        )
-        capturer.startCapture(1280, 720, 30)
-
-        val localVideoTrack = peerConnectionFactory.createVideoTrack("videoTrack", videoSource)
-
-        this.peerConnection.let {
-            val mediaStream = peerConnectionFactory.createLocalMediaStream("mediaStream")
-            mediaStream.addTrack(localVideoTrack)
-            peerConnection.addTrack(localVideoTrack, listOf("streamId"))
-
-            var init = DataChannel.Init()
-            init.ordered = true
-            init.protocol = "json"
-            init.id = 3
-            var dataChannel = peerConnection.createDataChannel("StateFeedBack", init)
-            binding.btnSend.tag = dataChannel
-
-            peerConnection.createOffer(object : SdpObserver {
-                override fun onCreateSuccess(p0: SessionDescription?) {
-                    p0?.let {
-                        peerConnection.setLocalDescription(this, p0)
-
-                        postSdpToServer(p0)
-                        return
-                    }
-
-                    showToast("Fail to create sdp")
-                }
-
-                override fun onSetSuccess() {
-                    Log.d(TAG, "set local sdp successfully")
-                }
-
-                override fun onCreateFailure(p0: String?) {
-                    Log.d(TAG, "failed to create local sdp: $p0")
-                }
-
-                override fun onSetFailure(p0: String?) {
-                    Log.d(TAG, "failed to set local sdp: $p0")
-                }
-
-            }, MediaConstraints())
-
-        }
-    }
-
-    private fun postSdpToServer(p: SessionDescription) {
-        lifecycleScope.launch {
-            try {
-                val requestBody =
-                    p.description.encodeToByteArray().toRequestBody("application/sdp".toMediaType())
-                val result =
-                    retrofit.create(IRequest::class.java).postSdp(endPoint, requestBody).string()
-                launch(Dispatchers.Main) {
-                    peerConnection.setRemoteDescription(object : SdpObserver {
-                        override fun onCreateSuccess(p0: SessionDescription?) {
-                        }
-
-                        override fun onSetSuccess() {
-                            Log.d(TAG, "set remote sdp successfully")
-                        }
-
-                        override fun onCreateFailure(p0: String?) {
-                        }
-
-                        override fun onSetFailure(p0: String?) {
-                            Log.d(TAG, "failed to set remote sdp: $p0")
-                        }
-
-                    }, SessionDescription(SessionDescription.Type.ANSWER, result))
-                }
-            } catch (e: Exception) {
-                launch(Dispatchers.Main) {
-                    Log.e(TAG, "Post sdp to server fail: $e")
-                    showToast("Post sdp to server fail: ${e.message}")
-                }
-            }
-        }
-    }
-
-    private fun createCameraCapturer(enumerator: Camera2Enumerator): CameraVideoCapturer? {
-        val deviceNames = enumerator.deviceNames
-
-        for (deviceName in deviceNames) {
-            if (enumerator.isBackFacing(deviceName)) {
-                var capturer = enumerator.createCapturer(deviceName, null)
-                if (null != capturer) {
-                    return capturer
-                }
-            }
-        }
-        return null
-    }
 }
 
 fun Activity.showToast(msg: String) {
     Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-}
-
-interface IRequest {
-
-    @POST("/whip/endpoint/{endpoint}")
-    suspend fun postSdp(@Path("endpoint") endpoint: String, @Body sdp: RequestBody): ResponseBody
-
-    @POST("/whip/create")
-    suspend fun createEndPoint(@Body body: Any): ResponseBody
-
-    @DELETE("/whip/endpoint/{endpoint}")
-    suspend fun destroyEndPoint(@Path("endpoint") endpoint: String): ResponseBody
-
 }

@@ -25,7 +25,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
 
-const val TAG = "CameraStreamDetailFragmentVM"
+private const val TAG = "CameraStreamDetailFragmentVM"
 
 class CameraStreamDetailVM : DJIViewModel() {
 
