@@ -353,11 +353,12 @@ class WebRtcConnection(
 
             override fun onMessage(p0: DataChannel.Buffer?) {
                 p0?.let {
-                    val data = it.data.array().decodeToString()
+                    val byteArray = ByteArray(it.data.remaining())
+                    it.data.get(byteArray)
 
                     eventEmitter.emit(
                         WebRtcEvent(
-                            EVENT_RECEIVED_DATA, DataFromChannel(identity, data, channel.label())
+                            EVENT_RECEIVED_DATA, DataFromChannel(identity, byteArray.decodeToString(), channel.label())
                         )
                     )
                 }
