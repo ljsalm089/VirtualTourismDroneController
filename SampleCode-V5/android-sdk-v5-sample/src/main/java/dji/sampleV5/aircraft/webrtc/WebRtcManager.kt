@@ -355,10 +355,12 @@ class WebRtcConnection(
                 p0?.let {
                     val byteArray = ByteArray(it.data.remaining())
                     it.data.get(byteArray)
+                    val message = byteArray.decodeToString()
+                    Log.d(TAG, "Got message from channel: ${identity}.${channel.label()}: $message")
 
                     eventEmitter.emit(
                         WebRtcEvent(
-                            EVENT_RECEIVED_DATA, DataFromChannel(identity, byteArray.decodeToString(), channel.label())
+                            EVENT_RECEIVED_DATA, DataFromChannel(identity, message, channel.label())
                         )
                     )
                 }
