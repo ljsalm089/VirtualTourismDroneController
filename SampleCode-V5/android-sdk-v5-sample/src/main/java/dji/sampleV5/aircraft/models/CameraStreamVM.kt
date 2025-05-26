@@ -14,12 +14,17 @@ import dji.sampleV5.aircraft.webrtc.DataFromChannel
 import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_ERROR
 import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_SUCCESS
 import dji.sampleV5.aircraft.webrtc.EVENT_EXCHANGE_OFFER_ERROR
+import dji.sampleV5.aircraft.webrtc.EVENT_EXCHANGE_OFFER_SUCCESS
 import dji.sampleV5.aircraft.webrtc.EVENT_RECEIVED_DATA
 import dji.sampleV5.aircraft.webrtc.VIDEO_PUBLISHER
 import dji.sampleV5.aircraft.webrtc.WebRtcEvent
 import dji.sampleV5.aircraft.webrtc.WebRtcManager
 import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.functions.Consumer
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.webrtc.AudioSource
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
@@ -34,6 +39,8 @@ import org.webrtc.VideoTrack
 private const val TAG = "CameraStreamVM"
 
 private const val useDroneCamera = false
+
+private const val PING_INTERVAL = 200L
 
 private val permissions = listOf(
     Manifest.permission.CAMERA,
@@ -105,7 +112,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     }
 
     fun sendData() {
-        webRtcManager.sendData("Hello: ${System.currentTimeMillis()}")
+        webRtcManager.sendData("Hello: ${System.currentTimeMillis()}", "Hello")
     }
 
     override fun accept(t: WebRtcEvent) {
@@ -133,6 +140,11 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
             data?.let {
                 onReceivedData(data)
             }
+        } else if (EVENT_EXCHANGE_OFFER_SUCCESS == t.event) {
+            // exchange offer successfully, start periodic task to send ping to the headset
+            if (t.data == VIDEO_PUBLISHER) {
+                startPeriodicTask()
+            }
         }
     }
 
@@ -146,6 +158,16 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     private fun onReceivedData(data: DataFromChannel) {
         Log.d(TAG, "Got message from ${data.identity}.${data.channel}: ${data.data}")
 
+    }
+
+    private fun startPeriodicTask() {
+        viewModelScope.launch {
+            while (null != videoSource && isActive) {
+                delay(PING_INTERVAL)
+
+                webRtcManager.sendData("${System.currentTimeMillis()}", "Ping")
+            }
+        }
     }
 
     private fun attachVideoAndAudioToConnection(connectionInfo: ConnectionInfo) {

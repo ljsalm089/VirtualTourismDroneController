@@ -44,8 +44,11 @@ private const val TAG = "WebRtcManager"
 const val EVENT_CREATE_CONNECTION_ERROR = "create_connection_error"
 const val EVENT_CREATE_CONNECTION_SUCCESS = "create_connection_success"
 const val EVENT_EXCHANGE_OFFER_ERROR = "exchange_offer_error"
+const val EVENT_EXCHANGE_OFFER_SUCCESS = "exchange_offer_success"
 
 const val EVENT_RECEIVED_DATA = "received_data"
+
+const val KEEP_ALIVE_INTERVAL = 1000L
 
 
 data class WebRtcEvent(val event: String, val data: Any?)
@@ -128,8 +131,8 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
         executePeriodicTask()
     }
 
-    fun sendData(data: String) {
-        connections[VIDEO_PUBLISHER]?.sendData(data)
+    fun sendData(data: String, type: String) {
+        connections[VIDEO_PUBLISHER]?.sendData(data, type)
     }
 
     fun stop() {
@@ -159,7 +162,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
                     keyAndValue.value.keepAlive()
                 }
 
-                delay(1000)
+                delay(KEEP_ALIVE_INTERVAL)
             }
         }
     }
@@ -295,7 +298,7 @@ class WebRtcConnection(
         }
     }
 
-    fun sendData(data: String) {
+    fun sendData(data: String, type: String) {
         if (!this::connection.isInitialized) return
 
         if (null == transmitDataChannel) {
@@ -319,7 +322,9 @@ class WebRtcConnection(
             })
         }
         val sendData = Gson().toJson(hashMapOf(
-            Pair("msg", data)
+            Pair("msg", data),
+            Pair("type", type),
+            Pair("channel", transmitDataChannel?.label())
         ))
         transmitDataChannel?.send(DataChannel.Buffer(ByteBuffer.wrap(sendData.toByteArray()), false))
     }
@@ -388,6 +393,7 @@ class WebRtcConnection(
             }
 
             override fun onSetSuccess() {
+                eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_SUCCESS, identity))
             }
 
             override fun onCreateFailure(p0: String?) {
