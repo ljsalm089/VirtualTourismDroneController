@@ -8,8 +8,10 @@ import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import dji.sampleV5.aircraft.DJIVideoCapturer
 import dji.sampleV5.aircraft.webrtc.ConnectionInfo
+import dji.sampleV5.aircraft.webrtc.DATA_RECEIVER
 import dji.sampleV5.aircraft.webrtc.DataFromChannel
 import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_ERROR
 import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_SUCCESS
@@ -24,7 +26,6 @@ import io.reactivex.rxjava3.functions.Consumer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.webrtc.AudioSource
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
@@ -55,6 +56,12 @@ data class VideoTrackAdded(
     val useDroneCamera: Boolean,
 )
 
+data class RootMessage (
+    val msg: String,
+    val channel: String,
+    val type: String
+)
+
 class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
 
     private lateinit var webRtcManager: WebRtcManager
@@ -71,6 +78,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     private var audioSource: AudioSource? = null
 
     private var tmpPermission = listOf<String>()
+
+    private val gson = Gson()
 
     fun initialize(application: Application) {
         this.application = application
@@ -157,7 +166,13 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
 
     private fun onReceivedData(data: DataFromChannel) {
         Log.d(TAG, "Got message from ${data.identity}.${data.channel}: ${data.data}")
-
+        if (DATA_RECEIVER == data.identity) {
+            val rootMessage = gson.fromJson(data.data, RootMessage::class.java)
+            if ("Ping".equals(rootMessage?.type, true)
+                && "DronePosFeedBack" != rootMessage.channel) {
+                webRtcManager.sendData(rootMessage.msg, "Pong")
+            }
+        }
     }
 
     private fun startPeriodicTask() {
