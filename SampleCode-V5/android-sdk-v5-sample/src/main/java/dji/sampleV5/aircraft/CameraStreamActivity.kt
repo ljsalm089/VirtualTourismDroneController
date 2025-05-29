@@ -52,7 +52,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             modifyGreenChannel(frameData, offset, width, height)
 
             // draws the frame into the SurfaceView
-            drawFrameOnSurface(frameData, offset, width, height)
+            pushVideoToServer(frameData, offset, width, height)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -133,6 +133,14 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             ICameraStreamManager.FrameFormat.NV21,
             frameListener
         )
+
+        MediaDataCenter.getInstance().cameraStreamManager.putCameraStreamSurface(
+            ComponentIndexType.LEFT_OR_MAIN,
+            surface!!,
+            binding.root.measuredWidth,
+            binding.root.measuredHeight,
+            ICameraStreamManager.ScaleType.CENTER_INSIDE
+        )
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -180,7 +188,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         Log.d("CameraStream", "Completed processing. Total iterations: $iterationCount")
     }
 
-    private fun drawFrameOnSurface(frameData: ByteArray, offset: Int, width: Int, height: Int) {
+    private fun pushVideoToServer(frameData: ByteArray, offset: Int, width: Int, height: Int) {
         if (binding.root.getChildAt(0) !is SurfaceView) {
             return
         }
@@ -213,7 +221,13 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             val surfaceView = binding.root.getChildAt(0) as SurfaceView
             binding.root.removeView(surfaceView)
 
+            // release the surface view for integrated camera
             (surfaceView as? SurfaceViewRenderer)?.release()
+
+            if (surfaceView.tag is VideoCapturer) {
+                // using the drone camera
+                MediaDataCenter.getInstance().cameraStreamManager.removeCameraStreamSurface(surfaceView.holder.surface)
+            }
         }
     }
 

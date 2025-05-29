@@ -39,7 +39,7 @@ import org.webrtc.VideoTrack
 
 private const val TAG = "CameraStreamVM"
 
-private const val useDroneCamera = false
+private const val useDroneCamera = true
 
 private const val PING_INTERVAL = 200L
 
