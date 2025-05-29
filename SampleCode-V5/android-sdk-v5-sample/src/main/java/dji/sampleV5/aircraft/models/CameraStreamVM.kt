@@ -233,7 +233,14 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
             videoTrackUpdate.postValue(
                 VideoTrackAdded(connectionInfo.eglBase, localVideoTrack, it, useDroneCamera)
             )
-            connectionInfo.connection.addTrack(localVideoTrack, listOf("streamId"))
+            var sender = connectionInfo.connection.addTrack(localVideoTrack, listOf("streamId"))
+            var parameters = sender.parameters
+            for (parameter  in parameters.encodings) {
+                parameter.minBitrateBps = 4500000
+                parameter.maxBitrateBps = 6000000
+                parameter.maxFramerate = 60
+            }
+            sender.parameters = parameters
         }
     }
 
