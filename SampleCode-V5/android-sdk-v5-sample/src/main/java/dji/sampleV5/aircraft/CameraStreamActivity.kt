@@ -104,6 +104,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         surfaceView.init(eglBase.eglBaseContext, null)
         surfaceView.setMirror(true)
         videoTrack.addSink(surfaceView)
+        surfaceView.tag = videoTrack
     }
 
     private fun initializeVideoFromDrone(videoSource: VideoCapturer) {
@@ -222,7 +223,11 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             binding.root.removeView(surfaceView)
 
             // release the surface view for integrated camera
-            (surfaceView as? SurfaceViewRenderer)?.release()
+            (surfaceView as? SurfaceViewRenderer)?.let {
+                it.release()
+                // avoid the memory leaking
+                (it.tag as? VideoTrack)?.removeSink(it)
+            }
 
             if (surfaceView.tag is VideoCapturer) {
                 // using the drone camera
@@ -232,6 +237,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        releaseSurfaceView()
+
         super.onDestroy()
 
         // Cleanup

@@ -39,7 +39,7 @@ import org.webrtc.VideoTrack
 
 private const val TAG = "CameraStreamVM"
 
-private const val useDroneCamera = true
+private const val useDroneCamera = false
 
 private const val PING_INTERVAL = 200L
 
@@ -59,7 +59,8 @@ data class VideoTrackAdded(
 data class RootMessage (
     val msg: String,
     val channel: String,
-    val type: String
+    val type: String,
+    val from: String,
 )
 
 class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
@@ -168,8 +169,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         Log.d(TAG, "Got message from ${data.identity}.${data.channel}: ${data.data}")
         if (DATA_RECEIVER == data.identity) {
             val rootMessage = gson.fromJson(data.data, RootMessage::class.java)
-            if ("Ping".equals(rootMessage?.type, true)
-                && "DronePosFeedBack" != rootMessage.channel) {
+            if ("Ping".equals(rootMessage?.type, true)) {
                 webRtcManager.sendData(rootMessage.msg, "Pong")
             }
         }

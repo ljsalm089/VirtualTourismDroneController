@@ -3,6 +3,7 @@ package dji.sampleV5.aircraft.webrtc
 import android.app.Application
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import io.reactivex.rxjava3.subjects.PublishSubject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,8 @@ const val EVENT_EXCHANGE_OFFER_SUCCESS = "exchange_offer_success"
 const val EVENT_RECEIVED_DATA = "received_data"
 
 const val KEEP_ALIVE_INTERVAL = 1000L
+
+const val FROM_DRONE = "Drone"
 
 
 data class WebRtcEvent(val event: String, val data: Any?)
@@ -131,8 +134,12 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
         executePeriodicTask()
     }
 
-    fun sendData(data: String, type: String) {
-        connections[VIDEO_PUBLISHER]?.sendData(data, type)
+    fun sendData(dataString: String, type: String) {
+        val data = HashMap<String, Any?>()
+        data["data"] = dataString
+        data["type"] = type
+        data["from"] = FROM_DRONE
+        connections[VIDEO_PUBLISHER]?.sendData(data)
     }
 
     fun stop() {
@@ -147,6 +154,14 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
     }
 
     override fun emit(event: WebRtcEvent) {
+        // filter out all message from this end
+        if (EVENT_RECEIVED_DATA == event.event) {
+            var data = Gson().fromJson(event.data?.toString(), object: TypeToken<HashMap<String, Any?>>() {})
+
+            if (FROM_DRONE == data["from"]) {
+                return
+            }
+        }
         webRtcEventObservable.onNext(event)
     }
 
@@ -298,7 +313,7 @@ class WebRtcConnection(
         }
     }
 
-    fun sendData(data: String, type: String) {
+    fun sendData(data: MutableMap<String, Any?>) {
         if (!this::connection.isInitialized) return
 
         if (null == transmitDataChannel) {
@@ -321,11 +336,9 @@ class WebRtcConnection(
                 }
             })
         }
-        val sendData = Gson().toJson(hashMapOf(
-            Pair("msg", data),
-            Pair("type", type),
-            Pair("channel", transmitDataChannel?.label())
-        ))
+        data["channel"] = transmitDataChannel?.label()
+        val sendData = Gson().toJson(data)
+        // In theory, all the data sent from the transmit data channel will be received on the received channels
         transmitDataChannel?.send(DataChannel.Buffer(ByteBuffer.wrap(sendData.toByteArray()), false))
     }
 
