@@ -155,8 +155,8 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
     override fun emit(event: WebRtcEvent) {
         // filter out all message from this end
-        if (EVENT_RECEIVED_DATA == event.event) {
-            var data = Gson().fromJson(event.data?.toString(), object: TypeToken<HashMap<String, Any?>>() {})
+        if (EVENT_RECEIVED_DATA == event.event && event.data is DataFromChannel) {
+            val data = Gson().fromJson(event.data.data, object: TypeToken<Map<String, Any?>>() {})
 
             if (FROM_DRONE == data["from"]) {
                 return
