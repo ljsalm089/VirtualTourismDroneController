@@ -57,7 +57,7 @@ data class VideoTrackAdded(
 )
 
 data class RootMessage (
-    val msg: String,
+    val data: String,
     val channel: String,
     val type: String,
     val from: String,
@@ -170,7 +170,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         if (DATA_RECEIVER == data.identity) {
             val rootMessage = gson.fromJson(data.data, RootMessage::class.java)
             if ("Ping".equals(rootMessage?.type, true)) {
-                webRtcManager.sendData(rootMessage.msg, "Pong")
+                webRtcManager.sendData(rootMessage.data, "Pong")
             }
         }
     }
