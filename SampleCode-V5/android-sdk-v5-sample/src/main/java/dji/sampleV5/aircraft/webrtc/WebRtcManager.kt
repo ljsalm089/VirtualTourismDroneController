@@ -47,6 +47,10 @@ const val EVENT_CREATE_CONNECTION_SUCCESS = "create_connection_success"
 const val EVENT_EXCHANGE_OFFER_ERROR = "exchange_offer_error"
 const val EVENT_EXCHANGE_OFFER_SUCCESS = "exchange_offer_success"
 
+const val EVENT_HEADSET_ONLINE = "headset_online"
+
+const val EVENT_HEADSET_OFFLINE = "headset_offline"
+
 const val EVENT_RECEIVED_DATA = "received_data"
 
 const val KEEP_ALIVE_INTERVAL = 1000L
@@ -90,6 +94,35 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
     private val peerConnectionFactory: PeerConnectionFactory
 
+    private var mExChange: WebSocketOfferExchange? = null
+
+    private val headsetStatusCallBack: (String) -> Unit = {
+        if (EVENT_HEADSET_ONLINE == it) {
+
+            // create a connection for receiving data
+            val supportTypes = hashSetOf(
+                TYPE_DATA
+            )
+            val subscribeOfferExchange = object : IOfferExchange {
+                override suspend fun exchangeOffer(localOffer: String): String {
+                    return mExChange!!.startSubscribe(localOffer)
+                }
+
+                override suspend fun destroy() {
+                }
+
+            }
+            val conn = WebRtcConnection(
+                DATA_RECEIVER, supportTypes, subscribeOfferExchange,
+                this, this, eglBase, scope
+            )
+            connections[DATA_RECEIVER] = conn
+            conn.connection
+        } else if (EVENT_HEADSET_OFFLINE == it) {
+
+        }
+    }
+
     init {
         val option = PeerConnectionFactory.InitializationOptions.builder(application)
             .setEnableInternalTracer(true)
@@ -103,35 +136,33 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
     }
 
     fun start() {
+        mExChange = WebSocketOfferExchange(scope, 5000L, headsetStatusCallBack)
+
         // create a connection for publishing video
-        var supportTypes = hashSetOf(
+        val supportTypes = hashSetOf(
             TYPE_VIDEO,
             TYPE_AUDIO,
             TYPE_DATA
         )
-        val whipOfferExchange = WhipOfferExchanger(VIDEO_PUBLISHER)
+        val publisherOfferExchange = object : IOfferExchange {
+            override suspend fun exchangeOffer(localOffer: String): String {
+                return mExChange!!.startPublish(localOffer)
+            }
+
+            override suspend fun destroy() {
+            }
+
+        }
         var conn = WebRtcConnection(
-            VIDEO_PUBLISHER, supportTypes, whipOfferExchange,
+            VIDEO_PUBLISHER, supportTypes, publisherOfferExchange,
             this, this, eglBase, scope
         )
         connections[VIDEO_PUBLISHER] = conn
-
-        // create a connection for receiving data
-        supportTypes = hashSetOf(
-            TYPE_DATA
-        )
-        val whepOfferExchange = WhepOfferExchanger(DATA_RECEIVER)
-        conn = WebRtcConnection(
-            DATA_RECEIVER, supportTypes, whepOfferExchange,
-            this, this, eglBase, scope
-        )
-        connections[DATA_RECEIVER] = conn
 
         for (keyAndValue in connections.entries) {
             keyAndValue.value.connect()
         }
 
-        executePeriodicTask()
     }
 
     fun sendData(dataString: String, type: String) {

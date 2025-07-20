@@ -210,6 +210,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         Log.e("CameraStream", "Failed to draw frame/set videoFrame: ${e.message}")
                     }
                 }
+                ""
             } ?: Log.e(
                 "CameraStream",
                 "Surface is null"

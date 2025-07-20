@@ -166,7 +166,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     }
 
     private fun onReceivedData(data: DataFromChannel) {
-        Log.d(TAG, "Got message from ${data.identity}.${data.channel}: ${data.data}")
         if (DATA_RECEIVER == data.identity) {
             val rootMessage = gson.fromJson(data.data, RootMessage::class.java)
             if ("Ping".equals(rootMessage?.type, true)) {
