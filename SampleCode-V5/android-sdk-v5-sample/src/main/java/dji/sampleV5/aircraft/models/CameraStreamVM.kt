@@ -13,10 +13,10 @@ import dji.sampleV5.aircraft.DJIVideoCapturer
 import dji.sampleV5.aircraft.webrtc.ConnectionInfo
 import dji.sampleV5.aircraft.webrtc.DATA_RECEIVER
 import dji.sampleV5.aircraft.webrtc.DataFromChannel
-import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_ERROR
-import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_SUCCESS
-import dji.sampleV5.aircraft.webrtc.EVENT_EXCHANGE_OFFER_ERROR
-import dji.sampleV5.aircraft.webrtc.EVENT_EXCHANGE_OFFER_SUCCESS
+import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION
+import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_SUCCESS_FOR_PUBLICATION
+import dji.sampleV5.aircraft.webrtc.EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION
+import dji.sampleV5.aircraft.webrtc.EVENT_EXCHANGE_OFFER_SUCCESS_FOR_PUBLICATION
 import dji.sampleV5.aircraft.webrtc.EVENT_RECEIVED_DATA
 import dji.sampleV5.aircraft.webrtc.VIDEO_PUBLISHER
 import dji.sampleV5.aircraft.webrtc.WebRtcEvent
@@ -126,15 +126,15 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     }
 
     override fun accept(t: WebRtcEvent) {
-        if (EVENT_CREATE_CONNECTION_SUCCESS == t.event) {
+        if (EVENT_CREATE_CONNECTION_SUCCESS_FOR_PUBLICATION == t.event) {
             val connectionInfo = t.data as? ConnectionInfo
             if (VIDEO_PUBLISHER == connectionInfo?.identity) {
                 attachVideoAndAudioToConnection(connectionInfo)
             }
-        } else if (EVENT_CREATE_CONNECTION_ERROR == t.event) {
+        } else if (EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION == t.event) {
             // create connection error, the data is null
             Log.e(TAG, "Failed to create a connection")
-        } else if (EVENT_EXCHANGE_OFFER_ERROR == t.event) {
+        } else if (EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION == t.event) {
             if (t.data is Exception) {
                 Log.e(
                     TAG,
@@ -150,7 +150,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
             data?.let {
                 onReceivedData(data)
             }
-        } else if (EVENT_EXCHANGE_OFFER_SUCCESS == t.event) {
+        } else if (EVENT_EXCHANGE_OFFER_SUCCESS_FOR_PUBLICATION == t.event) {
             // exchange offer successfully, start periodic task to send ping to the headset
             if (t.data == VIDEO_PUBLISHER) {
                 startPeriodicTask()

@@ -3,14 +3,11 @@ package dji.sampleV5.aircraft.webrtc
 import android.app.Application
 import android.util.Log
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import io.reactivex.rxjava3.subjects.PublishSubject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.webrtc.DataChannel
 import org.webrtc.DefaultVideoDecoderFactory
 import org.webrtc.DefaultVideoEncoderFactory
@@ -26,6 +23,8 @@ import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import java.nio.ByteBuffer
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 
 const val TYPE_DATA = "data"
@@ -42,10 +41,15 @@ const val STUN_SERVER = "stun:stun.l.google.com:19302"
 
 private const val TAG = "WebRtcManager"
 
-const val EVENT_CREATE_CONNECTION_ERROR = "create_connection_error"
-const val EVENT_CREATE_CONNECTION_SUCCESS = "create_connection_success"
-const val EVENT_EXCHANGE_OFFER_ERROR = "exchange_offer_error"
-const val EVENT_EXCHANGE_OFFER_SUCCESS = "exchange_offer_success"
+const val EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION = "create_connection_error"
+const val EVENT_CREATE_CONNECTION_SUCCESS_FOR_PUBLICATION = "create_connection_success"
+const val EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION = "exchange_offer_error"
+const val EVENT_EXCHANGE_OFFER_SUCCESS_FOR_PUBLICATION = "exchange_offer_success"
+
+const val EVENT_CREATE_CONNECTION_ERROR_FOR_SUBSCRIPTION = "create_connection_error_for_subscription"
+const val EVENT_CREATE_CONNECTION_SUCCESS_FOR_SUBSCRIPTION = "create_connection_success_for_subscription"
+const val EVENT_EXCHANGE_OFFER_ERROR_FOR_SUBSCRIPTION = "exchange_offer_error_for_subscription"
+const val EVENT_EXCHANGE_OFFER_SUCCESS_FOR_SUBSCRIPTION = "exchange_offer_success_for_subscription"
 
 const val EVENT_HEADSET_ONLINE = "headset_online"
 
@@ -86,9 +90,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
     val webRtcEventObservable = PublishSubject.create<WebRtcEvent>()
 
-    private lateinit var periodicJob: Job
-
-    private val connections = HashMap<String, WebRtcConnection>()
+    private val connections = HashMap<String, BaseWebRtcConnection>()
 
     private val eglBase = EglBase.create()
 
@@ -98,28 +100,38 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
     private val headsetStatusCallBack: (String) -> Unit = {
         if (EVENT_HEADSET_ONLINE == it) {
-
             // create a connection for receiving data
             val supportTypes = hashSetOf(
                 TYPE_DATA
             )
             val subscribeOfferExchange = object : IOfferExchange {
                 override suspend fun exchangeOffer(localOffer: String): String {
-                    return mExChange!!.startSubscribe(localOffer)
+                    TODO("Shouldn't be called in this situation")
+                }
+
+                override suspend fun fetchRemoteOffer(supportTypes: Set<String>): String {
+                    return mExChange!!.startSubscribe(supportTypes)
+                }
+
+                override suspend fun updateLocalOffer(offer: String) {
+                    mExChange!!.updateLocalOffer(offer)
                 }
 
                 override suspend fun destroy() {
                 }
 
             }
-            val conn = WebRtcConnection(
+            val conn = SubscriptionConnection(
                 DATA_RECEIVER, supportTypes, subscribeOfferExchange,
                 this, this, eglBase, scope
             )
             connections[DATA_RECEIVER] = conn
-            conn.connection
+            conn.connect()
         } else if (EVENT_HEADSET_OFFLINE == it) {
-
+            // destroy the connection for data receiving
+            connections[DATA_RECEIVER]?.disconnect()
+            connections.remove(DATA_RECEIVER)
+            mExChange?.stopSubscribe()
         }
     }
 
@@ -149,11 +161,20 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
                 return mExChange!!.startPublish(localOffer)
             }
 
+            override suspend fun fetchRemoteOffer(supportTypes: Set<String>): String {
+                TODO("Shouldn't be called in this situation")
+            }
+
+            override suspend fun updateLocalOffer(offer: String) {
+                TODO("Shouldn't be called in this situation")
+            }
+
             override suspend fun destroy() {
             }
 
         }
-        var conn = WebRtcConnection(
+
+        val conn = PublicationConnection(
             VIDEO_PUBLISHER, supportTypes, publisherOfferExchange,
             this, this, eglBase, scope
         )
@@ -162,7 +183,6 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
         for (keyAndValue in connections.entries) {
             keyAndValue.value.connect()
         }
-
     }
 
     fun sendData(dataString: String, type: String) {
@@ -174,177 +194,43 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
     }
 
     fun stop() {
-        if (this::periodicJob.isInitialized) {
-            this.periodicJob.cancel()
-        }
-
         for (keyAndValue in connections.entries) {
             keyAndValue.value.disconnect()
         }
         connections.clear()
+
+        mExChange?.destroy()
     }
 
     override fun emit(event: WebRtcEvent) {
         // filter out all message from this end
-        if (EVENT_RECEIVED_DATA == event.event && event.data is DataFromChannel) {
-            val data = Gson().fromJson(event.data.data, object: TypeToken<Map<String, Any?>>() {})
-
-            if (FROM_DRONE == data["from"]) {
-                return
-            }
+        scope.launch (Dispatchers.Main) {
+            webRtcEventObservable.onNext(event)
         }
-        webRtcEventObservable.onNext(event)
     }
 
     override fun get(): PeerConnectionFactory {
         return peerConnectionFactory
     }
 
-    private fun executePeriodicTask() {
-        periodicJob = scope.launch {
-            while (isActive) {
-                // keep alive
-                for (keyAndValue in connections) {
-                    keyAndValue.value.keepAlive()
-                }
-
-                delay(KEEP_ALIVE_INTERVAL)
-            }
-        }
-    }
 }
 
-class WebRtcConnection(
-    private val identity: String,
-    private val supportTypes: Set<String>,
-    private val offerExchange: IOfferExchange,
-    private val eventEmitter: IWebRtcEventEmitter,
-    private val connectionFactoryProvider: IConnectionFactoryProvider,
-    private val eglBase: EglBase,
-    private val scope: CoroutineScope,
+abstract class BaseWebRtcConnection (
+    protected val identity: String,
+    protected val supportTypes: Set<String>,
+    protected val offerExchange: IOfferExchange,
+    protected val eventEmitter: IWebRtcEventEmitter,
+    protected val connectionFactoryProvider: IConnectionFactoryProvider,
+    protected val eglBase: EglBase,
+    protected val scope: CoroutineScope,
 ) {
+    protected lateinit var connection: PeerConnection
+    protected val receivedChannels: HashMap<String, DataChannel> = HashMap()
+    protected val dataObservers: HashMap<String, DataChannel.Observer> = HashMap()
+    protected var transmitDataChannel: DataChannel? = null
 
-    lateinit var connection: PeerConnection
-    private val receivedChannels: HashMap<String, DataChannel> = HashMap()
-    private val dataObservers: HashMap<String, DataChannel.Observer> = HashMap()
-    private var transmitDataChannel: DataChannel? = null
 
-    fun connect() {
-        val iceServers = listOf(
-            IceServer(STUN_SERVER)
-        )
-        val rtcConfig = RTCConfiguration(iceServers)
-        rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
-
-        val conn = connectionFactoryProvider.get().createPeerConnection(rtcConfig, object : Observer {
-            override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
-                Log.d(TAG, "onSignalingChange: $p0")
-            }
-
-            override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
-                Log.d(TAG, "ICE Connection State: $p0")
-            }
-
-            override fun onIceConnectionReceivingChange(p0: Boolean) {
-                Log.d(TAG, "onIceConnectionReceivingChange: $p0")
-            }
-
-            override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
-                Log.d(TAG, "onIceGatheringChange: $p0")
-            }
-
-            override fun onIceCandidate(p0: IceCandidate?) {
-                Log.d(TAG, "ICE Candidate: ${p0?.sdp}")
-            }
-
-            override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {
-                Log.d(TAG, "onIceCandidatesRemoved")
-            }
-
-            override fun onAddStream(p0: MediaStream?) {
-            }
-
-            override fun onRemoveStream(p0: MediaStream?) {
-            }
-
-            override fun onDataChannel(p0: DataChannel?) {
-                p0?.let {
-                    onReceivedDataChannel(it)
-                }
-            }
-
-            override fun onRenegotiationNeeded() {
-                Log.d(TAG, "onRenogotiationNeeded")
-            }
-        })
-        if (null == conn) {
-            eventEmitter.emit(WebRtcEvent(EVENT_CREATE_CONNECTION_ERROR, null))
-            return
-        }
-        connection = conn
-        eventEmitter.emit(
-            WebRtcEvent(
-                EVENT_CREATE_CONNECTION_SUCCESS,
-                ConnectionInfo(identity, connection, eglBase, connectionFactoryProvider.get())
-            )
-        )
-        if (supportTypes.contains(TYPE_DATA)) {
-            // create the test channel to make sure the offer contains the information to support data channels
-            val init = DataChannel.Init()
-            init.ordered = true
-            init.protocol = "json"
-            init.id = 10000
-            connection.createDataChannel("test", init)
-        }
-
-        connection.createOffer(object : SdpObserver {
-            override fun onCreateSuccess(p0: SessionDescription?) {
-                p0?.let {
-                    connection.setLocalDescription(this, p0)
-                    return
-                }
-
-                eventEmitter.emit(
-                    WebRtcEvent(
-                        EVENT_EXCHANGE_OFFER_ERROR,
-                        "Unable to create valid local offer!"
-                    )
-                )
-            }
-
-            override fun onSetSuccess() {
-                exchangeOffer(connection.localDescription)
-            }
-
-            override fun onCreateFailure(p0: String?) {
-                eventEmitter.emit(
-                    WebRtcEvent(
-                        EVENT_EXCHANGE_OFFER_ERROR,
-                        "Unable to create local offer!"
-                    )
-                )
-            }
-
-            override fun onSetFailure(p0: String?) {
-                eventEmitter.emit(
-                    WebRtcEvent(
-                        EVENT_EXCHANGE_OFFER_ERROR,
-                        "Unable to set local offer!"
-                    )
-                )
-            }
-        }, MediaConstraints())
-    }
-
-    fun keepAlive() {
-        scope.launch(Dispatchers.IO) {
-            for (kvp in receivedChannels.entries) {
-                kvp.value.send(DataChannel.Buffer(ByteBuffer.wrap("Ping".toByteArray()), false))
-            }
-        }
-    }
-
-    fun sendData(data: MutableMap<String, Any?>) {
+    open fun sendData(data: MutableMap<String, Any?>) {
         if (!this::connection.isInitialized) return
 
         if (null == transmitDataChannel) {
@@ -373,7 +259,77 @@ class WebRtcConnection(
         transmitDataChannel?.send(DataChannel.Buffer(ByteBuffer.wrap(sendData.toByteArray()), false))
     }
 
-    fun disconnect() {
+    open fun connect() {
+        val iceServers = listOf(
+            IceServer(STUN_SERVER)
+        )
+        val rtcConfig = RTCConfiguration(iceServers)
+        rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+
+        val conn =
+            connectionFactoryProvider.get().createPeerConnection(rtcConfig, object : Observer {
+                override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
+                    Log.d(TAG, "onSignalingChange: $p0")
+                }
+
+                override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
+                    Log.d(TAG, "ICE Connection State: $p0")
+                }
+
+                override fun onIceConnectionReceivingChange(p0: Boolean) {
+                    Log.d(TAG, "onIceConnectionReceivingChange: $p0")
+                }
+
+                override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
+                    Log.d(TAG, "onIceGatheringChange: $p0")
+                }
+
+                override fun onIceCandidate(p0: IceCandidate?) {
+                    Log.d(TAG, "ICE Candidate: ${p0?.sdp}")
+                }
+
+                override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {
+                    Log.d(TAG, "onIceCandidatesRemoved")
+                }
+
+                override fun onAddStream(p0: MediaStream?) {
+                }
+
+                override fun onRemoveStream(p0: MediaStream?) {
+                }
+
+                override fun onDataChannel(p0: DataChannel?) {
+                    p0?.let {
+                        onReceivedDataChannel(it)
+                    }
+                }
+
+                override fun onRenegotiationNeeded() {
+                    Log.d(TAG, "onRenogotiationNeeded")
+                }
+            })
+        if (null == conn) {
+            eventEmitter.emit(WebRtcEvent(getConnectionEvent(false), null))
+            return
+        }
+        connection = conn
+        eventEmitter.emit(
+            WebRtcEvent(
+                getConnectionEvent(true),
+                ConnectionInfo(identity, connection, eglBase, connectionFactoryProvider.get())
+            )
+        )
+        if (supportTypes.contains(TYPE_DATA)) {
+            // create the test channel to make sure the offer contains the information to support data channels
+            val init = DataChannel.Init()
+            init.ordered = true
+            init.protocol = "json"
+            init.id = 10000
+            connection.createDataChannel("test", init)
+        }
+    }
+
+    open fun disconnect() {
         if (!this::connection.isInitialized) return
 
         for (kav in receivedChannels.entries) {
@@ -385,6 +341,8 @@ class WebRtcConnection(
         }
         this.connection.dispose()
     }
+
+    abstract fun getConnectionEvent(success: Boolean) : String
 
     private fun onReceivedDataChannel(channel: DataChannel) {
         if (receivedChannels.contains(channel.label())) return
@@ -419,6 +377,158 @@ class WebRtcConnection(
         channel.registerObserver(dataObserver)
         dataObservers[channel.label()] = dataObserver
     }
+}
+
+class SubscriptionConnection(
+    identity: String, supportTypes: Set<String>, offerExchange: IOfferExchange,
+    eventEmitter: IWebRtcEventEmitter, connectionFactoryProvider: IConnectionFactoryProvider,
+    eglBase: EglBase, scope: CoroutineScope,
+) : BaseWebRtcConnection(
+    identity,
+    supportTypes,
+    offerExchange,
+    eventEmitter,
+    connectionFactoryProvider,
+    eglBase,
+    scope
+) {
+
+    override fun connect() {
+        super.connect()
+
+        // for subscriber, setup the remote offer first
+        scope.launch (Dispatchers.IO) {
+            val remoteOffer = offerExchange.fetchRemoteOffer(supportTypes)
+            val sdp = SessionDescription(SessionDescription.Type.OFFER, remoteOffer)
+
+            try {
+                setupRemoteOffer(sdp)
+            } catch (e: Exception) {
+                eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_ERROR_FOR_SUBSCRIPTION, e))
+                return@launch
+            }
+
+            // generate answer and return to remote server
+            try {
+                val localOffer = createLocalOffer()
+                offerExchange.updateLocalOffer(localOffer)
+            } catch (e: Exception) {
+                eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_ERROR_FOR_SUBSCRIPTION, e))
+                return@launch
+            }
+
+           eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_SUCCESS_FOR_SUBSCRIPTION, ""))
+        }
+    }
+
+    override fun getConnectionEvent(success: Boolean): String {
+        return if (success) EVENT_CREATE_CONNECTION_SUCCESS_FOR_SUBSCRIPTION else EVENT_CREATE_CONNECTION_ERROR_FOR_SUBSCRIPTION
+    }
+
+    private suspend fun createLocalOffer(): String = suspendCancellableCoroutine {
+        connection.createAnswer(object : SdpObserver {
+            override fun onCreateSuccess(p0: SessionDescription?) {
+                it.resume(p0!!.description)
+            }
+
+            override fun onSetSuccess() {
+                TODO("Shouldn't be called in this situation")
+            }
+
+            override fun onCreateFailure(p0: String?) {
+                it.resumeWithException(Exception("Failed to create local answer for subscription"))
+            }
+
+            override fun onSetFailure(p0: String?) {
+                TODO("Shouldn't be called in this situation")
+            }
+
+        }, MediaConstraints())
+    }
+
+    private suspend fun setupRemoteOffer(sdp: SessionDescription) = suspendCancellableCoroutine<Any?> {
+        connection.setRemoteDescription(object : SdpObserver {
+            override fun onCreateSuccess(p0: SessionDescription?) {
+                TODO("Shouldn't be called in this situation")
+            }
+
+            override fun onSetSuccess() {
+                // continue
+                it.resume(null)
+            }
+
+            override fun onCreateFailure(p0: String?) {
+                TODO("Shouldn't be called in this situation")
+            }
+
+            override fun onSetFailure(p0: String?) {
+                it.resumeWithException(Exception("Failed to setup remote offer for subscription"))
+            }
+
+        }, sdp)
+    }
+}
+
+class PublicationConnection(
+    identity: String, supportTypes: Set<String>, offerExchange: IOfferExchange,
+    eventEmitter: IWebRtcEventEmitter, connectionFactoryProvider: IConnectionFactoryProvider,
+    eglBase: EglBase, scope: CoroutineScope,
+) : BaseWebRtcConnection(
+    identity,
+    supportTypes,
+    offerExchange,
+    eventEmitter,
+    connectionFactoryProvider,
+    eglBase,
+    scope
+) {
+
+    override fun connect() {
+        super.connect()
+
+        // for publisher, setup the local offer first
+        connection.createOffer(object : SdpObserver {
+            override fun onCreateSuccess(p0: SessionDescription?) {
+                p0?.let {
+                    connection.setLocalDescription(this, p0)
+                    return
+                }
+
+                eventEmitter.emit(
+                    WebRtcEvent(
+                        EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION,
+                        "Unable to create valid local offer!"
+                    )
+                )
+            }
+
+            override fun onSetSuccess() {
+                exchangeOffer(connection.localDescription)
+            }
+
+            override fun onCreateFailure(p0: String?) {
+                eventEmitter.emit(
+                    WebRtcEvent(
+                        EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION,
+                        "Unable to create local offer!"
+                    )
+                )
+            }
+
+            override fun onSetFailure(p0: String?) {
+                eventEmitter.emit(
+                    WebRtcEvent(
+                        EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION,
+                        "Unable to set local offer!"
+                    )
+                )
+            }
+        }, MediaConstraints())
+    }
+
+    override fun getConnectionEvent(success: Boolean): String {
+        return if(success) EVENT_CREATE_CONNECTION_SUCCESS_FOR_PUBLICATION else EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION
+    }
 
     private fun exchangeOffer(offer: SessionDescription) {
         scope.launch(Dispatchers.IO) {
@@ -426,7 +536,7 @@ class WebRtcConnection(
                 val remoteOffer = offerExchange.exchangeOffer(offer.description)
                 scope.launch(Dispatchers.Main) { setRemoteOffer(remoteOffer) }
             } catch (e: Exception) {
-                eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_ERROR, "Network error: $e"))
+                eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION, "Network error: $e"))
             }
         }
     }
@@ -437,7 +547,7 @@ class WebRtcConnection(
             }
 
             override fun onSetSuccess() {
-                eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_SUCCESS, identity))
+                eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_SUCCESS_FOR_PUBLICATION, identity))
             }
 
             override fun onCreateFailure(p0: String?) {
@@ -446,7 +556,7 @@ class WebRtcConnection(
             override fun onSetFailure(p0: String?) {
                 eventEmitter.emit(
                     WebRtcEvent(
-                        EVENT_EXCHANGE_OFFER_ERROR,
+                        EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION,
                         "Unable to set remote offer"
                     )
                 )
