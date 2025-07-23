@@ -41,7 +41,7 @@ private const val TAG = "CameraStreamVM"
 
 private const val useDroneCamera = false
 
-private const val PING_INTERVAL = 200L
+private const val PING_INTERVAL = 2000L
 
 private val permissions = listOf(
     Manifest.permission.CAMERA,

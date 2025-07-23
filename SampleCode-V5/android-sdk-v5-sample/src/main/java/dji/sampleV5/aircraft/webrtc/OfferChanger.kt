@@ -232,7 +232,8 @@ class WebSocketOfferExchange(
             for (tmp in publishers) {
                 val publisher: Map<String, *>? = tmp as? Map<String, *>
                 // TODO the type of id should be confirmed first, because of the way of deserialize json
-                if (DATA_PUBLISHER_ID == publisher?.get(FIELD_ID)) {
+                val id: Long = (publisher?.get(FIELD_ID) as? Double?)?.toLong() ?: 0
+                if (DATA_PUBLISHER_ID.toLong() == id) {
                     scope.launch(Dispatchers.Main) {
                         // the headset is publishing data, make sure the invocation is on UI thread
                         headsetStatusCallBack?.invoke(EVENT_HEADSET_ONLINE)
@@ -343,9 +344,8 @@ class WebSocketOfferExchange(
     ) {
         if ((publish && !publishEndPoint.isValid()) || (!publish && !subscribeEndPoint.isValid())) {
             mutex.withLock {
-                if ((publish && TextUtils.isEmpty(publishEndPoint.sessionId))
-                    || (!publish && TextUtils.isEmpty(subscribeEndPoint.sessionId))
-                ) {
+                var endPoint: EndPoint = if (publish) publishEndPoint else subscribeEndPoint
+                if (TextUtils.isEmpty(endPoint.sessionId)) {
                     // make sure session is valid
                     val sessionResp = withContext(Dispatchers.IO) {
                         val req = BaseJanusBean("create")
@@ -365,20 +365,11 @@ class WebSocketOfferExchange(
                         return
                     }
 
-                    if (publish) {
-                        publishEndPoint.sessionId = resp.data?.get(FIELD_ID)
-                    } else {
-                        publishEndPoint.sessionId = resp.data?.get(FIELD_ID)
-                    }
-                }
-                val sessionId = if (publish) {
-                    publishEndPoint.sessionId
-                } else {
-                    subscribeEndPoint.sessionId
+                    endPoint.sessionId = resp.data?.get(FIELD_ID);
                 }
 
                 // attach session to the video room
-                val janusReq = JanusRequest(sessionId!!.toLong(), plugin = VIDEO_ROOM_PLUGIN)
+                val janusReq = JanusRequest(endPoint.sessionId!!.toLong(), plugin = VIDEO_ROOM_PLUGIN)
                 janusReq.janus = "attach"
 
                 val handleIdResp = withContext(Dispatchers.IO) {
@@ -397,11 +388,7 @@ class WebSocketOfferExchange(
                     return
                 }
 
-                if (publish) {
-                    publishEndPoint.handleId = resp.data?.get(FIELD_ID)
-                } else {
-                    subscribeEndPoint.handleId = resp.data?.get(FIELD_ID)
-                }
+                endPoint.handleId = resp.data?.get(FIELD_ID)
             }
         }
     }
