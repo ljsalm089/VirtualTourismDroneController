@@ -98,8 +98,8 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
     private var mExChange: WebSocketOfferExchange? = null
 
-    private val headsetStatusCallBack: (String) -> Unit = {
-        if (EVENT_HEADSET_ONLINE == it) {
+    private val headsetStatusCallBack: (String, Any?) -> Unit = { it, data ->
+        if (EVENT_HEADSET_ONLINE == it && !connections.contains(DATA_RECEIVER)) {
             // create a connection for receiving data
             val supportTypes = hashSetOf(
                 TYPE_DATA
@@ -110,7 +110,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
                 }
 
                 override suspend fun fetchRemoteOffer(supportTypes: Set<String>): String {
-                    return mExChange!!.startSubscribe(supportTypes)
+                    return mExChange!!.startSubscribe(supportTypes, data)
                 }
 
                 override suspend fun updateLocalOffer(offer: String) {
@@ -127,7 +127,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
             )
             connections[DATA_RECEIVER] = conn
             conn.connect()
-        } else if (EVENT_HEADSET_OFFLINE == it) {
+        } else if (EVENT_HEADSET_OFFLINE == it && connections.contains(DATA_RECEIVER)) {
             // destroy the connection for data receiving
             connections[DATA_RECEIVER]?.disconnect()
             connections.remove(DATA_RECEIVER)
@@ -204,9 +204,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
     override fun emit(event: WebRtcEvent) {
         // filter out all message from this end
-        scope.launch (Dispatchers.Main) {
-            webRtcEventObservable.onNext(event)
-        }
+        webRtcEventObservable.onNext(event)
     }
 
     override fun get(): PeerConnectionFactory {

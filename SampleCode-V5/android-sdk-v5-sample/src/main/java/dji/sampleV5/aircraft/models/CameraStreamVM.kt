@@ -129,6 +129,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         if (EVENT_CREATE_CONNECTION_SUCCESS_FOR_PUBLICATION == t.event) {
             val connectionInfo = t.data as? ConnectionInfo
             if (VIDEO_PUBLISHER == connectionInfo?.identity) {
+                Log.i(TAG, "Attach video and audio info to peer connection")
                 attachVideoAndAudioToConnection(connectionInfo)
             }
         } else if (EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION == t.event) {

@@ -128,7 +128,7 @@ fun <T> CancellableContinuation<T>.safeResumeWithException(e: Exception) {
 class WebSocketOfferExchange(
     val scope: CoroutineScope,
     val intervalToKeepAlive: Long,
-    var headsetStatusCallBack: ((String) -> Unit)?,
+    var headsetStatusCallBack: ((String, Any?) -> Unit)?,
 ) : WebSocketListener() {
 
     val TAG = "WebSocketOfferExchange"
@@ -209,13 +209,14 @@ class WebSocketOfferExchange(
         ) {
             val data: Map<String, Any?>? =
                 (result["plugindata"] as? Map<String, Any?>)?.get("data") as? Map<String, Any?>?
-            if (event == data?.get("videoroom") && ROOM_ID == data["room"]) {
+            val id: Int = (data?.get("room") as? Double?)?.toInt() ?: 0
+            if (event == data?.get("videoroom") && ROOM_ID == id) {
                 // right here, using Any to deserialize the json, 'unpublished' should be Double
-                // TODO need to be confirmed
-                if (DATA_PUBLISHER_ID == data["unpublished"]) {
+                val unpublishedId: Int = (data?.get("unpublished") as? Double?)?.toInt() ?: 0;
+                if (DATA_PUBLISHER_ID == unpublishedId) {
                     scope.launch(Dispatchers.Main) {
                         // the headset went offline
-                        headsetStatusCallBack?.invoke(EVENT_HEADSET_OFFLINE)
+                        headsetStatusCallBack?.invoke(EVENT_HEADSET_OFFLINE, null)
                     }
                 } else {
                     handleIfDataPublisherIsOnline(data)
@@ -232,11 +233,18 @@ class WebSocketOfferExchange(
             for (tmp in publishers) {
                 val publisher: Map<String, *>? = tmp as? Map<String, *>
                 // TODO the type of id should be confirmed first, because of the way of deserialize json
-                val id: Long = (publisher?.get(FIELD_ID) as? Double?)?.toLong() ?: 0
-                if (DATA_PUBLISHER_ID.toLong() == id) {
+                val id: Int = (publisher?.get(FIELD_ID) as? Double?)?.toInt() ?: 0
+                if (DATA_PUBLISHER_ID == id) {
+                    val streams = publisher?.get("streams") as? Collection<*>
+                    streams?.let {
+                        for (item in it) {
+                            val tmpItem = item as? MutableMap<String, Any?>
+                            if (null != tmpItem) tmpItem["feed"] = DATA_PUBLISHER_ID
+                        }
+                    }
                     scope.launch(Dispatchers.Main) {
                         // the headset is publishing data, make sure the invocation is on UI thread
-                        headsetStatusCallBack?.invoke(EVENT_HEADSET_ONLINE)
+                        headsetStatusCallBack?.invoke(EVENT_HEADSET_ONLINE, streams)
                     }
                     break
                 }
@@ -503,7 +511,7 @@ class WebSocketOfferExchange(
         }
     }
 
-    suspend fun startSubscribe(subscribeTypes: Set<String>): String = suspendCancellableCoroutine {
+    suspend fun startSubscribe(subscribeTypes: Set<String>, data: Any?): String = suspendCancellableCoroutine {
         var isCancel = false
 
         scope.launch(Dispatchers.IO) {
@@ -529,7 +537,7 @@ class WebSocketOfferExchange(
                 subscribeEndPoint.handleId!!.toLong(),
                 joinTransactionId
             )
-            joinReq["body"] = mapOf(
+            var body = hashMapOf<String, Any?>(
                 Pair("request", "join"),
                 Pair("ptype", "subscriber"),
                 Pair("room", ROOM_ID),
@@ -537,6 +545,11 @@ class WebSocketOfferExchange(
                 Pair("feed", DATA_PUBLISHER_ID),
                 Pair("audoupdate", false),
             )
+            data?.let { tmp_data ->
+                body.put("streams", tmp_data)
+                body.remove("feed")
+            }
+            joinReq["body"] = body
 
             val resp = sendMessageToServer(joinTransactionId, joinReq)
             val pluginResp = gson.fromJson(resp, JanusPluginResponse::class.java)
@@ -592,7 +605,9 @@ class WebSocketOfferExchange(
             subscribeEndPoint.handleId?.apply {
                 req.sessionId = subscribeEndPoint.sessionId!!.toLong()
                 req.handleId = this.toLong()
-                socket.send(gson.toJson(req))
+                val text = gson.toJson(req)
+                Log.d(TAG, "Add message to queue: $text")
+                socket.send(text)
             }
 
             // destroy the session id for subscription
@@ -601,8 +616,13 @@ class WebSocketOfferExchange(
 
             subscribeEndPoint.sessionId?.apply {
                 req.sessionId = this.toLong()
-                socket.send(gson.toJson(req))
+                val text = gson.toJson(req)
+                Log.d(TAG, "Add message to queue: $text")
+                socket.send(text)
             }
+
+            subscribeEndPoint.handleId = null
+            subscribeEndPoint.sessionId = null
         }
     }
 
@@ -614,7 +634,9 @@ class WebSocketOfferExchange(
             publishEndPoint.handleId?.apply {
                 req.sessionId = publishEndPoint.sessionId!!.toLong()
                 req.handleId = this.toLong()
-                socket.send(gson.toJson(req))
+                val text = gson.toJson(req)
+                Log.d(TAG, "Add message to queue: $text")
+                socket.send(text)
             }
 
             // destroy the session ids
@@ -623,8 +645,13 @@ class WebSocketOfferExchange(
 
             publishEndPoint.sessionId?.apply {
                 req.sessionId = this.toLong()
-                socket.send(gson.toJson(req))
+                val text = gson.toJson(req)
+                Log.d(TAG, "Add message to queue: $text")
+                socket.send(text)
             }
+
+            publishEndPoint.handleId = null;
+            subscribeEndPoint.sessionId = null;
         }
     }
 
