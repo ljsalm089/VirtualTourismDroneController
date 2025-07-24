@@ -59,7 +59,7 @@ interface IOfferExchange {
 
     suspend fun fetchRemoteOffer(supportTypes: Set<String>): String
 
-    suspend fun updateLocalOffer(offer: String)
+    suspend fun uploadLocalAnswer(offer: String)
 
     suspend fun destroy()
 }
@@ -567,7 +567,7 @@ class WebSocketOfferExchange(
         }
     }
 
-    suspend fun updateLocalOffer(offer: String) {
+    suspend fun uploadLocalAnswer(offer: String) {
         // the websocket, session id, and handle id should be prepared
         // send an 'start' event to video room and post the local offer to remote server
         val startTransactionId = randomUUID()

@@ -113,8 +113,8 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
                     return mExChange!!.startSubscribe(supportTypes, data)
                 }
 
-                override suspend fun updateLocalOffer(offer: String) {
-                    mExChange!!.updateLocalOffer(offer)
+                override suspend fun uploadLocalAnswer(offer: String) {
+                    mExChange!!.uploadLocalAnswer(offer)
                 }
 
                 override suspend fun destroy() {
@@ -165,7 +165,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
                 TODO("Shouldn't be called in this situation")
             }
 
-            override suspend fun updateLocalOffer(offer: String) {
+            override suspend fun uploadLocalAnswer(offer: String) {
                 TODO("Shouldn't be called in this situation")
             }
 
@@ -408,8 +408,10 @@ class SubscriptionConnection(
 
             // generate answer and return to remote server
             try {
-                val localOffer = createLocalOffer()
-                offerExchange.updateLocalOffer(localOffer)
+                val localAnswer = createLocalAnswer()
+                setupLocalAnswer(localAnswer)
+                offerExchange.uploadLocalAnswer(localAnswer.description)
+
             } catch (e: Exception) {
                 eventEmitter.emit(WebRtcEvent(EVENT_EXCHANGE_OFFER_ERROR_FOR_SUBSCRIPTION, e))
                 return@launch
@@ -423,10 +425,10 @@ class SubscriptionConnection(
         return if (success) EVENT_CREATE_CONNECTION_SUCCESS_FOR_SUBSCRIPTION else EVENT_CREATE_CONNECTION_ERROR_FOR_SUBSCRIPTION
     }
 
-    private suspend fun createLocalOffer(): String = suspendCancellableCoroutine {
+    private suspend fun createLocalAnswer(): SessionDescription = suspendCancellableCoroutine {
         connection.createAnswer(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {
-                it.resume(p0!!.description)
+                it.resume(p0!!)
             }
 
             override fun onSetSuccess() {
@@ -461,6 +463,27 @@ class SubscriptionConnection(
 
             override fun onSetFailure(p0: String?) {
                 it.resumeWithException(Exception("Failed to setup remote offer for subscription"))
+            }
+
+        }, sdp)
+    }
+
+    private suspend fun setupLocalAnswer(sdp: SessionDescription) = suspendCancellableCoroutine<Any?> {
+        connection.setLocalDescription(object : SdpObserver {
+            override fun onCreateSuccess(p0: SessionDescription?) {
+                TODO("Shouldn't be called in this situation")
+            }
+
+            override fun onSetSuccess() {
+                it.resume(null)
+            }
+
+            override fun onCreateFailure(p0: String?) {
+                TODO("Shouldn't be called in this situation")
+            }
+
+            override fun onSetFailure(p0: String?) {
+                it.resumeWithException(Exception("Failed to setup local answer for subscription"))
             }
 
         }, sdp)
