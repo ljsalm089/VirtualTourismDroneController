@@ -73,6 +73,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     val message = MutableLiveData<String>()
     val videoTrackUpdate = MutableLiveData<VideoTrackAdded>()
 
+    val sendBtnStatus = MutableLiveData<Boolean>()
+    val publishBtnStatus = MutableLiveData<Boolean>()
+    val stopBtnStatus = MutableLiveData<Boolean>()
+
     private var videoCapturer: VideoCapturer? = null
 
     private var videoSource: VideoSource? = null
@@ -86,6 +90,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         this.application = application
         webRtcManager = WebRtcManager(scope = viewModelScope, application)
         eventDisposable = webRtcManager.webRtcEventObservable.subscribe(this)
+
+        sendBtnStatus.postValue(false)
+        stopBtnStatus.postValue(false)
+        publishBtnStatus.postValue(true)
     }
 
     fun clickPublishBtn() {
@@ -107,6 +115,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
 
     fun startPublish() {
         webRtcManager.start()
+
+        publishBtnStatus.postValue(false)
+        stopBtnStatus.postValue(true)
     }
 
     fun stopPublish() {
@@ -119,6 +130,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         audioSource = null
         videoCapturer = null
         videoSource = null
+
+        sendBtnStatus.postValue(false)
+        publishBtnStatus.postValue(true)
+        stopBtnStatus.postValue(false)
     }
 
     fun sendData() {
@@ -134,18 +149,26 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
             }
         } else if (EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION == t.event) {
             // create connection error, the data is null
-            Log.e(TAG, "Failed to create a connection")
+            val msg = "Failed to create a connection for video publication"
+            Log.e(TAG, msg);
+            message.postValue(msg)
+
+            stopPublish()
         } else if (EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION == t.event) {
+            val msg: String
             if (t.data is Exception) {
+                msg = "Got an error while exchanging the offer with server"
                 Log.e(
                     TAG,
-                    "Got an error while exchanging the offer with server",
+                    msg,
                     t.data as? Exception
                 )
             } else {
                 // string
-                Log.e(TAG, "Got an error while exchanging the offer with server: ${t.data}")
+                msg = "Got an error while exchanging the offer with server: ${t.data}"
+                Log.e(TAG, msg)
             }
+            message.postValue(msg)
         } else if (EVENT_RECEIVED_DATA == t.event) {
             val data = t.data as? DataFromChannel
             data?.let {

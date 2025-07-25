@@ -1,6 +1,7 @@
 package dji.sampleV5.aircraft.webrtc
 
 import android.app.Application
+import android.os.Looper
 import android.util.Log
 import com.google.gson.Gson
 import io.reactivex.rxjava3.subjects.PublishSubject
@@ -99,39 +100,55 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
     private var mExChange: WebSocketOfferExchange? = null
 
     private val headsetStatusCallBack: (String, Any?) -> Unit = { it, data ->
-        if (EVENT_HEADSET_ONLINE == it && !connections.contains(DATA_RECEIVER)) {
-            // create a connection for receiving data
-            val supportTypes = hashSetOf(
-                TYPE_DATA
-            )
-            val subscribeOfferExchange = object : IOfferExchange {
-                override suspend fun exchangeOffer(localOffer: String): String {
-                    TODO("Shouldn't be called in this situation")
-                }
-
-                override suspend fun fetchRemoteOffer(supportTypes: Set<String>): String {
-                    return mExChange!!.startSubscribe(supportTypes, data)
-                }
-
-                override suspend fun uploadLocalAnswer(offer: String) {
-                    mExChange!!.uploadLocalAnswer(offer)
-                }
-
-                override suspend fun destroy() {
-                }
-
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            scope.launch(Dispatchers.Main) {
+                handleHeadsetStatus(it, data)
             }
-            val conn = SubscriptionConnection(
-                DATA_RECEIVER, supportTypes, subscribeOfferExchange,
-                this, this, eglBase, scope
-            )
-            connections[DATA_RECEIVER] = conn
-            conn.connect()
-        } else if (EVENT_HEADSET_OFFLINE == it && connections.contains(DATA_RECEIVER)) {
-            // destroy the connection for data receiving
-            connections[DATA_RECEIVER]?.disconnect()
-            connections.remove(DATA_RECEIVER)
-            mExChange?.stopSubscribe()
+        } else {
+            handleHeadsetStatus(it, data)
+        }
+    }
+
+    private fun handleHeadsetStatus(event: String, data: Any?) {
+        if (connections.contains(VIDEO_PUBLISHER)) {
+            if (EVENT_HEADSET_ONLINE == event && !connections.contains(DATA_RECEIVER)) {
+                // create a connection for receiving data
+                val supportTypes = hashSetOf(
+                    TYPE_DATA
+                )
+                val subscribeOfferExchange = object : IOfferExchange {
+                    override suspend fun exchangeOffer(localOffer: String): String {
+                        TODO("Shouldn't be called in this situation")
+                    }
+
+                    override suspend fun fetchRemoteOffer(supportTypes: Set<String>): String {
+                        return mExChange!!.startSubscribe(supportTypes, data)
+                    }
+
+                    override suspend fun uploadLocalAnswer(offer: String) {
+                        mExChange!!.uploadLocalAnswer(offer)
+                    }
+
+                    override suspend fun destroy() {
+                    }
+
+                }
+                val conn = SubscriptionConnection(
+                    DATA_RECEIVER, supportTypes, subscribeOfferExchange,
+                    this, this, eglBase, scope
+                )
+                connections[DATA_RECEIVER] = conn
+                conn.connect()
+
+                emit(WebRtcEvent(event, null))
+            } else if (EVENT_HEADSET_OFFLINE == event && connections.contains(DATA_RECEIVER)) {
+                // destroy the connection for data receiving
+                connections[DATA_RECEIVER]?.disconnect()
+                connections.remove(DATA_RECEIVER)
+                mExChange?.stopSubscribe()
+
+                emit(WebRtcEvent(event, null))
+            }
         }
     }
 

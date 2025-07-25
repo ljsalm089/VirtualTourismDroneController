@@ -59,6 +59,16 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         super.onCreate(savedInstanceState)
         binding = ActivityCameraStreamBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        viewModel.stopBtnStatus.observe(this) {
+            binding.btnEnd.isClickable = it
+        }
+        viewModel.publishBtnStatus.observe(this) {
+            binding.btnStart.isClickable = it
+        }
+        viewModel.sendBtnStatus.observe(this) {
+            binding.btnSend.isClickable = it
+        }
         viewModel.initialize(this.application)
 
         binding.btnStart.setOnClickListener {
