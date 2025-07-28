@@ -322,6 +322,8 @@ class WebSocketOfferExchange(
                                         )
                                     )
                                 }
+
+                                if (publishEndPoint.isValid()) fetchParticipantsInVideoRoom()
                             }
                         }
                     } catch (e: Exception) {
@@ -331,6 +333,20 @@ class WebSocketOfferExchange(
                 }
             }
         }
+    }
+
+    private suspend fun fetchParticipantsInVideoRoom() {
+        val transactionId: String = randomUUID()
+        val request = createVideoRoomMessage(
+            publishEndPoint.sessionId!!.toLong(),
+            publishEndPoint.handleId!!.toLong(),
+            transactionId
+        )
+        request["body"] = hashMapOf<String, Any?>(
+            Pair("request", "listparticipants"),
+            Pair("room", ROOM_ID)
+        )
+        sendMessageToServer(transactionId, request)
     }
 
     private fun createVideoRoomMessage(
@@ -459,17 +475,25 @@ class WebSocketOfferExchange(
                 Pair("type", "offer"),
                 Pair("sdp", localOffer)
             )
-            publishReq["body"] = mapOf<String, Any>(
+            publishReq["body"] = hashMapOf<String, Any>(
                 Pair("request", "joinandconfigure"),
                 Pair("room", ROOM_ID),
                 Pair("pin", ROOM_PIN),
                 Pair("ptype", "publisher"),
                 Pair("id", VIDEO_PUBLISHER_ID),
                 Pair("display", VIDEO_PUBLISHER_DISPLAY),
-                Pair("audio", true),
-                Pair("video", true),
-                Pair("data", true)
+//                Pair("audio", true),
+//                Pair("video", true),
+//                Pair("data", true)
             )
+            val streams = ArrayList<HashMap<String, Any>>()
+            for (mid in 0..2) {
+                val tmp = HashMap<String, Any>()
+                tmp["mid"] = mid
+                tmp["keyframe"] = true
+                tmp["send"] = true
+            }
+            publishReq["streams"] = streams
 
             val resp = sendMessageToServer(transactionId, publishReq)
 
@@ -630,12 +654,20 @@ class WebSocketOfferExchange(
         webSocket?.let { socket ->
             // destroy the handle ids
             val req = JanusRequest()
+            req.janus = "leave"
+            if (publishEndPoint.isValid()) {
+                req.sessionId = publishEndPoint.sessionId!!.toLong()
+                req.handleId = publishEndPoint.handleId!!.toLong()
+                val text = gson.toJson(req)
+                Log.d(TAG, "Add message to queue:\n$text")
+            }
+
             req.janus = "detach"
             publishEndPoint.handleId?.apply {
                 req.sessionId = publishEndPoint.sessionId!!.toLong()
                 req.handleId = this.toLong()
                 val text = gson.toJson(req)
-                Log.d(TAG, "Add message to queue: $text")
+                Log.d(TAG, "Add message to queue:\n$text")
                 socket.send(text)
             }
 
@@ -646,7 +678,7 @@ class WebSocketOfferExchange(
             publishEndPoint.sessionId?.apply {
                 req.sessionId = this.toLong()
                 val text = gson.toJson(req)
-                Log.d(TAG, "Add message to queue: $text")
+                Log.d(TAG, "Add message to queue:\n$text")
                 socket.send(text)
             }
 
