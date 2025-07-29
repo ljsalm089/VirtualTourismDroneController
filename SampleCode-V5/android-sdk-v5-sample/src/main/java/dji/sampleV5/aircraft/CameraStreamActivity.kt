@@ -112,7 +112,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             )
         )
         surfaceView.init(eglBase.eglBaseContext, null)
-        surfaceView.setMirror(true)
+        surfaceView.setMirror(false)
         videoTrack.addSink(surfaceView)
         surfaceView.tag = videoTrack
     }
