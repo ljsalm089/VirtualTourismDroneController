@@ -58,6 +58,8 @@ const val EVENT_HEADSET_OFFLINE = "headset_offline"
 
 const val EVENT_RECEIVED_DATA = "received_data"
 
+const val EVENT_LOG_MESSAGE = "log_message"
+
 const val KEEP_ALIVE_INTERVAL = 1000L
 
 const val FROM_DRONE = "Drone"

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingTranslation">
 
     <string name="news_title">MSDK 5.4.0</string>
     <string name="news_description">"- Added supported aircraft: Matrice 350 RTK.
@@ -484,4 +485,16 @@ More refer to the release notes." </string>
     <string name="item_app_silently_upgrade_description">Demonstrate APP Silently Upgrade functions</string>
     <string name="btn_silently_upgrade_package">Set Silently Upgrade Package</string>
     <string name="btn_install_test_app">Install Test App</string>
+
+
+    <!-- Camera streaming activity -->
+    <string name="hint_data_latency">Data Latency(ms)</string>
+    <string name="hint_fetch_video">Video Fetch Frame Rate(fps)</string>
+    <string name="hint_push_video">Video Push Frame Rate(fps)</string>
+    <string name="hint_drone_initial_position">Drone Initial Position</string>
+    <string name="hint_drone_current_position">Drone Current Position</string>
+    <string name="hint_control_frequency">Drone Control Frequency(cps)</string>
+    <string name="hint_drone_distance_to_ip">Distance to IP(m)</string>
+    <string name="hint_empty" />
+
 </resources>

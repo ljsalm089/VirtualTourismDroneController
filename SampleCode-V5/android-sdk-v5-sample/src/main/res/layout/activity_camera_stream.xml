@@ -1,31 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-android:layout_width="match_parent"
-android:layout_height="match_parent">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:background="@color/gray"
+    android:layout_height="match_parent">
 
-    <Button
-        android:id="@+id/btn_start"
-        android:text="Publish"
+    <LinearLayout
+        android:id="@+id/ll_information"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_status"
+            android:layout_width="@dimen/uxsdk_300_dp"
+            tools:listitem="@layout/item_monitoring_status"
+            android:layout_height="match_parent"/>
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_message"
+            android:layout_width="@dimen/uxsdk_300_dp"
+            tools:listitem="@layout/item_message_info"
+            android:layout_height="match_parent" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/ll_operations"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:layout_margin="@dimen/uxsdk_16_dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingVertical="@dimen/uxsdk_10_dp">
 
-    <Button
-        android:id="@+id/btn_send"
-        android:text="SEND"
-        android:layout_gravity="center_horizontal|bottom"
-        android:layout_margin="@dimen/uxsdk_16_dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        <Button
+            android:id="@+id/btn_start"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:text="Publish" />
 
-    <Button
-        android:id="@+id/btn_end"
-        android:text="Stop"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="@dimen/uxsdk_16_dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        <Button
+            android:id="@+id/btn_send"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal|bottom"
+            android:text="SEND" />
 
+        <Button
+            android:id="@+id/btn_end"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:text="Stop" />
+    </LinearLayout>
 </FrameLayout>

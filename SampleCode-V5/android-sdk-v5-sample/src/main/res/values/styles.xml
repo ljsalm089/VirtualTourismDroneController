@@ -73,4 +73,11 @@
         <item name="android:textColor">@color/white</item>
         <item name="android:textSize">@dimen/left_button_list_button_text_size</item>
     </style>
+
+    <style name="StatusStyle">
+        <item name="android:layout_marginBottom">5dp</item>
+        <item name="android:gravity">center|left</item>
+        <item name="android:textSize">@dimen/uxsdk_10_dp</item>
+        <item name="android:textColor">@color/white</item>
+    </style>
 </resources>
