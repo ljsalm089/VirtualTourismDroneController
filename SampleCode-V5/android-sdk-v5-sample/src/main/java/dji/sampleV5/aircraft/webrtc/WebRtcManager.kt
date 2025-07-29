@@ -7,6 +7,7 @@ import com.google.gson.Gson
 import io.reactivex.rxjava3.subjects.PublishSubject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.webrtc.DataChannel
@@ -21,6 +22,8 @@ import org.webrtc.PeerConnection.IceServer
 import org.webrtc.PeerConnection.Observer
 import org.webrtc.PeerConnection.RTCConfiguration
 import org.webrtc.PeerConnectionFactory
+import org.webrtc.RTCStatsCollectorCallback
+import org.webrtc.RTCStatsReport
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import java.nio.ByteBuffer
@@ -212,6 +215,12 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
         connections[VIDEO_PUBLISHER]?.sendData(data)
     }
 
+    suspend fun obtainStatisticsInformation(): RTCStatsReport? = suspendCancellableCoroutine { continuation ->
+        connections[VIDEO_PUBLISHER]?.getStatistics {
+            continuation.resume(it)
+        }
+    }
+
     fun stop() {
         for (keyAndValue in connections.entries) {
             keyAndValue.value.disconnect()
@@ -274,6 +283,10 @@ abstract class BaseWebRtcConnection (
         val sendData = Gson().toJson(data)
         // In theory, all the data sent from the transmit data channel will be received on the received channels
         transmitDataChannel?.send(DataChannel.Buffer(ByteBuffer.wrap(sendData.toByteArray()), false))
+    }
+
+    open fun getStatistics(callback: RTCStatsCollectorCallback) {
+        connection.getStats(callback)
     }
 
     open fun connect() {

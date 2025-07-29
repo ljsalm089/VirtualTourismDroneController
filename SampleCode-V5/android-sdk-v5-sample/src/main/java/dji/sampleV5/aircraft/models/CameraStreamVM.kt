@@ -251,6 +251,14 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
                 delay(PING_INTERVAL)
 
                 webRtcManager.sendData("${System.currentTimeMillis()}", "Ping")
+
+                // obtain the push video frame rate
+                val result = webRtcManager.obtainStatisticsInformation()
+                result?.statsMap?.forEach {
+                    if ("outbound-rtp" == it.value.type && "video".equals(it.value.members["kind"]?.toString(), true)) {
+                        it.value.members["framesPerSecond"]?.let { fps-> monitoringStatus.emit(R.string.hint_push_video to fps) }
+                    }
+                }
             }
         }
     }
