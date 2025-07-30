@@ -16,6 +16,7 @@ import dji.sampleV5.aircraft.databinding.ActivityMainBinding
 import dji.sampleV5.aircraft.models.BaseMainActivityVm
 import dji.sampleV5.aircraft.models.MSDKInfoVm
 import dji.sampleV5.aircraft.models.MSDKManagerVM
+import dji.sampleV5.aircraft.models.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.models.globalViewModels
 import dji.sampleV5.aircraft.util.Helper
 import dji.sampleV5.aircraft.util.ToastUtils
@@ -100,28 +101,32 @@ abstract class DJIMainActivity : AppCompatActivity() {
     } //end of onCreate
 
     fun btnLiveStreamSetup() {
-        binding.btnLiveStreamTest.setOnClickListener() {
+        binding.btnLiveStreamTest.setOnClickListener {
             val intent = Intent(this, FragmentTestActivity::class.java)
             startActivity(intent)
         }
     }
 
     fun btnGetByteStreamSetup() {
-        binding.btnGetByteStream.setOnClickListener( {
+        binding.btnGetByteStream.setOnClickListener {
             val intent = Intent(this, LiveStreamActivity::class.java)
             startActivity(intent)
-        })
+        }
     }
 
     fun btnVirtualStickFragment() {
-        binding.btnVirtualStickFragment.setOnClickListener() {
+        binding.btnVirtualStickFragment.setOnClickListener {
             val intent = Intent(this, VirtualStickActivity::class.java)
             startActivity(intent)
         }
     }
 
     fun btnCameraStreamActivitySetup() {
-        binding.btnCameraStreamActivity.setOnClickListener() {
+        binding.btnDroneStreaming.setOnClickListener {
+            if (USE_DRONE_CAMERA && true != binding.btnDroneStreaming.tag) {
+                showToast("The drone is not connected!")
+                return@setOnClickListener
+            }
             val intent = Intent(this, CameraStreamActivity::class.java)
             startActivity(intent)
         }
@@ -153,6 +158,7 @@ abstract class DJIMainActivity : AppCompatActivity() {
             binding.textViewPackageProductCategory.text = StringUtils.getResStr(R.string.package_product_category, it.packageProductCategory)
             binding.textViewIsDebug.text = StringUtils.getResStr(R.string.is_sdk_debug, it.isDebug)
             binding.textCoreInfo.text = it.coreInfo.toString()
+            binding.btnDroneStreaming.tag = it.isConnected
         }
 
         binding.iconSdkForum.setOnClickListener {

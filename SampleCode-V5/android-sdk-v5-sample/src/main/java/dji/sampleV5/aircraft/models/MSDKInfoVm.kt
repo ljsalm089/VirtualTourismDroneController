@@ -91,6 +91,13 @@ class MSDKInfoVm : DJIViewModel() {
                 refreshMSDKInfo()
             }
         }
+        ProductKey.KeyConnection.create().listen(this) {
+            LogUtils.i(tag, "Connection: $it")
+            it?.let {
+                msdkInfo.value?.isConnected = it
+                refreshMSDKInfo()
+            }
+        }
     }
 
     private fun removeListener() {

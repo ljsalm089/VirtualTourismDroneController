@@ -26,6 +26,10 @@ import dji.sampleV5.aircraft.webrtc.EVENT_RECEIVED_DATA
 import dji.sampleV5.aircraft.webrtc.VIDEO_PUBLISHER
 import dji.sampleV5.aircraft.webrtc.WebRtcEvent
 import dji.sampleV5.aircraft.webrtc.WebRtcManager
+import dji.sdk.keyvalue.key.ProductKey
+import dji.v5.et.create
+import dji.v5.et.listen
+import dji.v5.manager.KeyManager
 import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.functions.Consumer
 import kotlinx.coroutines.delay
@@ -45,7 +49,7 @@ import org.webrtc.VideoTrack
 
 private const val TAG = "CameraStreamVM"
 
-private const val useDroneCamera = false
+const val USE_DRONE_CAMERA = true
 
 private const val PING_INTERVAL = 2000L
 
@@ -80,7 +84,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
 
     val message = MutableSharedFlow<Pair<Int, String>>(extraBufferCapacity = Int.MAX_VALUE)
 
-    val sendBtnStatus = MutableLiveData<Boolean>()
+    val getReadyStatus = MutableLiveData<Boolean>()
     val publishBtnStatus = MutableLiveData<Boolean>()
     val stopBtnStatus = MutableLiveData<Boolean>()
 
@@ -104,11 +108,12 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         webRtcManager = WebRtcManager(scope = viewModelScope, application)
         eventDisposable = webRtcManager.webRtcEventObservable.subscribe(this)
 
-        sendBtnStatus.value = false
+        getReadyStatus.value = false
         stopBtnStatus.value = false
         publishBtnStatus.value = true
 
         initializeEventHandles()
+        initialDroneControlling()
     }
 
     fun clickPublishBtn() {
@@ -146,15 +151,20 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         videoCapturer = null
         videoSource = null
 
-        sendBtnStatus.postValue(false)
+        getReadyStatus.postValue(false)
         publishBtnStatus.postValue(true)
         stopBtnStatus.postValue(false)
 
         showMessageOnLogAndScreen(Log.INFO, "Stop publishing video.")
     }
 
-    fun sendData() {
-        webRtcManager.sendData("Hello: ${System.currentTimeMillis()}", "Hello")
+    fun getReadyForRemoteControl() {
+        if (true != getReadyStatus.value) {
+            showMessageOnLogAndScreen(Log.ERROR, "The headset is not online yet")
+            return
+        }
+
+        // direct the drone to fly to an initial position
     }
 
     override fun accept(event: WebRtcEvent) {
@@ -166,6 +176,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         eventDisposable.dispose()
 
         webRtcManager.stop()
+
+        KeyManager.getInstance().cancelListen(this)
     }
 
     private fun onReceivedData(data: DataFromChannel) {
@@ -185,6 +197,13 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
                     }
                 }
             }
+        }
+    }
+
+    private fun initialDroneControlling() {
+        ProductKey.KeyConnection.create().listen(this, getOnce = false) {
+            val isConnected = true == it
+            showMessageOnLogAndScreen(if (isConnected) Log.INFO else Log.ERROR, "The drone is ${if (isConnected) "connected" else "disconnected"}.")
         }
     }
 
@@ -264,7 +283,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     }
 
     private fun attachVideoAndAudioToConnection(connectionInfo: ConnectionInfo) {
-        if (useDroneCamera) {
+        if (USE_DRONE_CAMERA) {
             videoCapturer = DJIVideoCapturer()
             videoSource =
                 connectionInfo.connectionFactory.createVideoSource(videoCapturer!!.isScreencast)
@@ -309,7 +328,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
             val localVideoTrack =
                 connectionInfo.connectionFactory.createVideoTrack("videoTrack", videoSource)
             videoTrackUpdate.postValue(
-                VideoTrackAdded(connectionInfo.eglBase, localVideoTrack, it, useDroneCamera)
+                VideoTrackAdded(connectionInfo.eglBase, localVideoTrack, it, USE_DRONE_CAMERA)
             )
             val sender = connectionInfo.connection.addTrack(localVideoTrack, listOf("streamId"))
             val parameters = sender.parameters

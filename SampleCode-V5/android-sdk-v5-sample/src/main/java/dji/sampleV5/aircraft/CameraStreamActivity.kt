@@ -133,6 +133,10 @@ class MessageAdapter : RecyclerView.Adapter<BaseViewHolder>() {
     }
 }
 
+fun TextView.updateTextColor(enable: Boolean?) {
+    this.setTextColor(if (enable == true) Color.WHITE else Color.GRAY)
+}
+
 class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private var surface: Surface? = null
@@ -145,16 +149,10 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private val frameListener =
         ICameraStreamManager.CameraFrameListener { frameData, offset, length, width, height, format ->
-            Log.d(
-                "CameraStream",
-                "Frame data size: " + frameData.size + " - (first 10 bytes): ${
-                    frameData.take(10).joinToString("") { "%02x".format(it) }
-                }"
-            )
-            modifyGreenChannel(frameData, offset, width, height)
+//            modifyGreenChannel(frameData, offset, width, height)
 
             // draws the frame into the SurfaceView
-            pushVideoToServer(frameData, offset, width, height)
+            pushVideoToServer(frameData, offset, length, width, height)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -163,27 +161,27 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         setContentView(binding.root)
 
         viewModel.stopBtnStatus.observe(this) {
-            binding.btnEnd.isClickable = it
+            binding.btnStopPublishing.updateTextColor(it)
         }
         viewModel.publishBtnStatus.observe(this) {
-            binding.btnStart.isClickable = it
+            binding.btnStartPublishing.updateTextColor(it)
         }
-        viewModel.sendBtnStatus.observe(this) {
-            binding.btnSend.isClickable = it
+        viewModel.getReadyStatus.observe(this) {
+            binding.btnGetReadyToControl.updateTextColor(it)
         }
         viewModel.initialize(this.application)
 
-        binding.btnStart.setOnClickListener {
+        binding.btnStartPublishing.setOnClickListener {
             viewModel.clickPublishBtn()
         }
 
-        binding.btnEnd.setOnClickListener {
+        binding.btnStopPublishing.setOnClickListener {
             viewModel.stopPublish()
 
             releaseSurfaceView()
         }
-        binding.btnSend.setOnClickListener {
-            viewModel.sendData()
+        binding.btnGetReadyToControl.setOnClickListener {
+            viewModel.getReadyForRemoteControl()
         }
 
         viewModel.requestPermissions.observe(this) {
@@ -321,7 +319,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         Log.d("CameraStream", "Completed processing. Total iterations: $iterationCount")
     }
 
-    private fun pushVideoToServer(frameData: ByteArray, offset: Int, width: Int, height: Int) {
+    private fun pushVideoToServer(frameData: ByteArray, offset: Int, length: Int, width: Int, height: Int) {
         if (binding.root.getChildAt(0) !is SurfaceView) {
             return
         }
@@ -330,7 +328,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             if (!it.isCapturing || null == it.capturerObserver) return
 
             surface?.let { _ ->
-                lifecycleScope.launch(Dispatchers.Main) {
+                lifecycleScope.launch(Dispatchers.IO) {
                     try {
                         val nv21Buffer = NV21Buffer(frameData, width, height, null)
                         val timestampNS: Long =

@@ -267,7 +267,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            app:layout_constraintGuide_percent="0.33" />
+            app:layout_constraintGuide_begin="213dp" />
 
         <ImageView
             android:id="@+id/icon_release_node"
@@ -349,44 +349,38 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="LiveFragment (Updated)"
-        app:layout_constraintBottom_toTopOf="@+id/btn_virtual_stick_fragment"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/view_info_panel"
         app:layout_constraintTop_toBottomOf="@+id/text_view_news_title" />
 
     <Button
-        android:id="@+id/btnGetByteStream"
+        android:id="@+id/btn_get_byte_stream"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="341dp"
+        android:layout_marginTop="@dimen/uxsdk_15_dp"
         android:text="Get Byte Stream"
-        app:layout_constraintBottom_toTopOf="@+id/btn_live_stream_test"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.513"
         app:layout_constraintStart_toEndOf="@+id/view_info_panel"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.044" />
+        app:layout_constraintTop_toBottomOf="@+id/btn_live_stream_test"/>
 
     <Button
         android:id="@+id/btn_virtual_stick_fragment"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/uxsdk_15_dp"
         android:text="Virtual Stick Fragment"
-        app:layout_constraintBottom_toTopOf="@+id/panel_icon_msg"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@+id/view_info_panel"
-        app:layout_constraintTop_toBottomOf="@+id/btn_live_stream_test"
-        app:layout_constraintVertical_bias="0.984" />
+        app:layout_constraintTop_toBottomOf="@+id/btn_get_byte_stream"/>
 
     <Button
-        android:id="@+id/btnCameraStreamActivity"
+        android:id="@+id/btn_drone_streaming"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="CameraStreamActivity"
-        app:layout_constraintBottom_toTopOf="@+id/panel_icon_msg"
+        android:text="Drone Streaming Fragment"
+        android:layout_marginTop="@dimen/uxsdk_15_dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/view_info_panel"
-        app:layout_constraintTop_toTopOf="@+id/versionInfoView" />
+        app:layout_constraintTop_toBottomOf="@+id/btn_virtual_stick_fragment"
+        app:layout_constraintStart_toEndOf="@+id/view_info_panel"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
