@@ -76,8 +76,7 @@ public class MapWidgetModel extends WidgetModel {
 
         @Override
         public void onSeriousWarningNotificationUpdate(@NonNull FlySafeSeriousWarningInformation info) {
-            flyZoneInformationDataProcessor.onNext(info.getFlyZoneInformation());
-
+//            flyZoneInformationDataProcessor.onNext(info.getFlyZoneInformation());
         }
 
         @Override

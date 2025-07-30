@@ -303,7 +303,7 @@ open class FPVWidget @JvmOverloads constructor(
     }
 
     override fun reactToModelChanges() {
-        addReaction(widgetModel.cameraNameProcessor.toFlowable().observeOn(SchedulerProvider.ui()).subscribe { cameraName: String -> updateCameraName(cameraName) })
+        addReaction(widgetModel.displayMsgProcessor.toFlowable().observeOn(SchedulerProvider.ui()).subscribe { cameraName: String -> updateCameraName(cameraName) })
         addReaction(widgetModel.cameraSideProcessor.toFlowable().observeOn(SchedulerProvider.ui()).subscribe { cameraSide: String -> updateCameraSide(cameraSide) })
         addReaction(widgetModel.hasVideoViewChanged.observeOn(SchedulerProvider.ui()).subscribe { delayCalculator() })
     }
@@ -330,6 +330,9 @@ open class FPVWidget @JvmOverloads constructor(
         LogUtils.i(LogPath.SAMPLE, "updateVideoSource", source, this)
         widgetModel.updateCameraSource(source, CameraLensType.UNKNOWN)
         updateCameraStream()
+        if (source == ComponentIndexType.VISION_ASSIST) {
+            widgetModel.enableVisionAssist()
+        }
         fpvSurfaceView.invalidate()
     }
 
@@ -350,27 +353,6 @@ open class FPVWidget @JvmOverloads constructor(
     private fun setViewDimensions() {
         viewWidth = measuredWidth
         viewHeight = measuredHeight
-    }
-
-    /**
-     * This method should not to be called until the size of `TextureView` is fixed.
-     */
-    public fun changeView(width: Int, height: Int, relativeWidth: Int, relativeHeight: Int) {
-        val lp = fpvSurfaceView.layoutParams
-        lp.width = width
-        lp.height = height
-        fpvSurfaceView.layoutParams = lp
-        if (width > viewWidth) {
-            fpvSurfaceView.scaleX = width.toFloat() / viewWidth
-        } else {
-            fpvSurfaceView.scaleX = ORIGINAL_SCALE
-        }
-        if (height > viewHeight) {
-            fpvSurfaceView.scaleY = height.toFloat() / viewHeight
-        } else {
-            fpvSurfaceView.scaleY = ORIGINAL_SCALE
-        }
-        gridLineView.adjustDimensions(relativeWidth, relativeHeight)
     }
 
     private fun delayCalculator() {
@@ -398,7 +380,7 @@ open class FPVWidget @JvmOverloads constructor(
     private fun checkAndUpdateCameraName() {
         if (!isInEditMode) {
             addDisposable(
-                widgetModel.cameraNameProcessor.toFlowable().firstOrError().observeOn(SchedulerProvider.ui()).subscribe(
+                widgetModel.displayMsgProcessor.toFlowable().firstOrError().observeOn(SchedulerProvider.ui()).subscribe(
                     { cameraName: String -> updateCameraName(cameraName) }, UxErrorHandle.logErrorConsumer(TAG, "updateCameraName")
                 )
             )

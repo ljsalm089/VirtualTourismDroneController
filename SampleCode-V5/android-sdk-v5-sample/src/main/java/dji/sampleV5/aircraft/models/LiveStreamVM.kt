@@ -51,8 +51,14 @@ class LiveStreamVM : DJIViewModel() {
             }
         }
 
-        availableCameraUpdatedListener = ICameraStreamManager.AvailableCameraUpdatedListener { list ->
-            availableCameraList.postValue(list)
+        availableCameraUpdatedListener = object :ICameraStreamManager.AvailableCameraUpdatedListener {
+            override fun onAvailableCameraUpdated(list: MutableList<ComponentIndexType>) {
+                availableCameraList.postValue(list)
+            }
+
+            override fun onCameraStreamEnableUpdate(cameraStreamEnableMap: MutableMap<ComponentIndexType, Boolean>) {
+
+            }
         }
 
         addListener()
@@ -72,7 +78,7 @@ class LiveStreamVM : DJIViewModel() {
         streamManager.startStream(object : CommonCallbacks.CompletionCallback {
             override fun onSuccess() {
                 CallbackUtils.onSuccess(callback)
-                reset();
+                reset()
             }
 
             override fun onFailure(error: IDJIError) {
@@ -86,7 +92,7 @@ class LiveStreamVM : DJIViewModel() {
         streamManager.stopStream(object : CommonCallbacks.CompletionCallback {
             override fun onSuccess() {
                 CallbackUtils.onSuccess(callback)
-                reset();
+                reset()
             }
 
             override fun onFailure(error: IDJIError) {

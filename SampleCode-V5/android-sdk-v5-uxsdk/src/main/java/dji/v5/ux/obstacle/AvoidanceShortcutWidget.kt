@@ -38,7 +38,8 @@ import io.reactivex.rxjava3.disposables.Disposable
  */
 class AvoidanceShortcutWidget @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null,
-) : ConstraintLayoutWidget<AvoidanceShortcutWidget.ModelState>(context, attrs), TabLayout.BaseOnTabSelectedListener<TabLayout.Tab> {
+) : ConstraintLayoutWidget<AvoidanceShortcutWidget.ModelState>(context, attrs),
+    TabLayout.BaseOnTabSelectedListener<TabLayout.Tab> {
 
     companion object {
         private const val TAG = "AvoidanceShortcutWidget"
@@ -130,9 +131,9 @@ class AvoidanceShortcutWidget @JvmOverloads constructor(
                     StringUtils.getResStr(R.string.uxsdk_setting_menu_perception_apas_s_mode, mode)
                 showToast(content)
             }
-        }else{
+        } else {
             val resStr = StringUtils.getResStr(R.string.uxsdk_setting_menu_perception_apas_off_dialog_content)
-            ViewUtil.showToast(context,resStr)
+            ViewUtil.showToast(context, resStr)
         }
     }
 
@@ -219,7 +220,7 @@ class AvoidanceShortcutWidget @JvmOverloads constructor(
      */
     private fun getAPASModeRange(): List<ObstacleAvoidanceType> {
         //行业机中只有M3支持绕行，其他机型都只支持刹停和关闭
-        return if (ProductUtil.isM3EProduct()) {
+        return if (ProductUtil.isM3EProduct() || ProductUtil.isM4EProduct() || ProductUtil.isM4DProduct()) {
             listOf(
                 ObstacleAvoidanceType.BRAKE,
                 ObstacleAvoidanceType.BYPASS,
@@ -234,14 +235,18 @@ class AvoidanceShortcutWidget @JvmOverloads constructor(
         return when (this) {
             FCFlightMode.UNKNOWN ->
                 ""
+
             FCFlightMode.ATTI ->
                 "A"
+
             FCFlightMode.GPS_SPORT ->
                 "S"
+
             FCFlightMode.TRIPOD_GPS ->
                 "T"
+
             else -> {
-                if (DpadProductManager.getInstance().isDjiRcPlus || DpadProductManager.getInstance().isDjiRcPro || ProductUtil.isM30Product() || ProductUtil.isM350Product()) "N" else "P"
+                if (DpadProductManager.getInstance().isDjiRcPlus || DpadProductManager.getInstance().isDjiRcPro || ProductUtil.isM30Product() || ProductUtil.isM350Product() || ProductUtil.isM400Product()) "N" else "P"
             }
 
         }

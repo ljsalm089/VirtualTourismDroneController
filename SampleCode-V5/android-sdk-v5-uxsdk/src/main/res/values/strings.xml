@@ -1194,4 +1194,6 @@
     <string name="uxsdk_hdmi_system_setting_mode_same">Duplicar pantalla</string>
     <string name="uxsdk_hdmi_system_setting_mode_fpv">Vista de cámara</string>
     <string name="uxsdk_hdmi_system_setting_mode_camera">Vista de cámara limpia</string>
+
+    <string name="uxsdk_assistant_video_empty_text">View after take off</string>
 </resources>

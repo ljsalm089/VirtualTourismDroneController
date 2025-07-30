@@ -5,11 +5,9 @@ import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import dji.sdk.keyvalue.key.FlightControllerKey;
 import dji.sdk.keyvalue.key.KeyTools;
 import dji.sdk.keyvalue.utils.ProductUtil;
-import dji.v5.common.callback.CommonCallbacks;
 import dji.v5.manager.KeyManager;
 import dji.v5.utils.common.ContextUtil;
 import dji.v5.utils.common.StringUtils;
@@ -70,7 +68,7 @@ public class OmniPerceptionMenuFragment extends MenuFragment {
         if (precisionLandingWidget == null) {
             return;
         }
-        if (isDownwardVisionSystemOpen && !ProductUtil.isM3EProduct()) {
+        if (isDownwardVisionSystemOpen && !ProductUtil.isM3EProduct() && !ProductUtil.isM4EProduct() && !ProductUtil.isM4DProduct()) {
             precisionLandingWidget.setVisibility(View.VISIBLE);
         } else {
             precisionLandingWidget.setVisibility(View.GONE);

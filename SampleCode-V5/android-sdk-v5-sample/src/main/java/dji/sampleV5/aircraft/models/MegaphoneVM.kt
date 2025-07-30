@@ -41,6 +41,10 @@ class MegaphoneVM : DJIViewModel() {
     var isRightPayloadConnect = MutableLiveData(false)
     var isUpPayloadConnect = MutableLiveData(false)
     var isOSDKPayloadConnect = MutableLiveData(false)
+    var isPort1Connect = MutableLiveData(false)
+    var isPort2Connect = MutableLiveData(false)
+    var isPort3Connect = MutableLiveData(false)
+    var isPort4Connect = MutableLiveData(false)
     var megaphonePlayState = MutableLiveData<MegaphoneInfo?>()
     var isQuickPlay = false
 
@@ -123,6 +127,26 @@ class MegaphoneVM : DJIViewModel() {
                 isOSDKPayloadConnect.value = it
             }
         }
+        PayloadKey.KeyConnection.create(ComponentIndexType.PORT_1).listen(this) {
+            it?.let {
+                isPort1Connect.value = it
+            }
+        }
+        PayloadKey.KeyConnection.create(ComponentIndexType.PORT_2).listen(this) {
+            it?.let {
+                isPort2Connect.value = it
+            }
+        }
+        PayloadKey.KeyConnection.create(ComponentIndexType.PORT_3).listen(this) {
+            it?.let {
+                isPort3Connect.value = it
+            }
+        }
+        PayloadKey.KeyConnection.create(ComponentIndexType.PORT_4).listen(this) {
+            it?.let {
+                isPort4Connect.value = it
+            }
+        }
     }
 
     override fun onCleared() {
@@ -201,6 +225,10 @@ class MegaphoneVM : DJIViewModel() {
 
     fun stopPushingFile(callback: CommonCallbacks.CompletionCallback?) {
         MegaphoneManager.getInstance().cancelPushingFileToMegaphone(callback)
+    }
+
+    fun enableAgc(enable : Boolean){
+        opusEncoder?.enableAgc(enable)
     }
 
     fun initRecorder() {
