@@ -149,5 +149,5 @@ dependencies {
     implementation deps.coroutines_android
 
     //FFmpeg library
-    implementation 'com.arthenica:ffmpeg-kit-full-gpl:6.0-2.LTS'
+//    implementation 'com.arthenica:ffmpeg-kit-full-gpl:6.0-2.LTS'
 }

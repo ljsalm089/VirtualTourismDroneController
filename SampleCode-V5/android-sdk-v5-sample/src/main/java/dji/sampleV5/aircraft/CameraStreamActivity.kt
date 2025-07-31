@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
-import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.Surface
@@ -29,13 +28,13 @@ import dji.v5.manager.interfaces.ICameraStreamManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.webrtc.EglBase
-import org.webrtc.NV21Buffer
+import org.webrtc.JavaI420Buffer
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoCapturer
 import org.webrtc.VideoFrame
 import org.webrtc.VideoTrack
+import java.nio.ByteBuffer
 import java.util.Random
-import java.util.concurrent.TimeUnit
 
 private val TAG = "CameraStreamActivity"
 
@@ -44,20 +43,25 @@ class StatusAdapter : RecyclerView.Adapter<BaseViewHolder>() {
     private val status = ArrayList<Pair<Int, Any?>>()
 
     init {
-        status.addAll(listOf(
-            R.string.hint_data_latency to -1,
-            R.string.hint_fetch_video to -1,
-            R.string.hint_push_video to -1,
-            R.string.hint_control_frequency to -1,
-            R.string.hint_empty to null,
-            R.string.hint_drone_initial_position to "-/-/-",
-            R.string.hint_drone_current_position to "-/-/-",
-            R.string.hint_drone_distance_to_ip to "-"
-        ))
+        status.addAll(
+            listOf(
+                R.string.hint_data_latency to -1,
+                R.string.hint_fetch_video to -1,
+                R.string.hint_push_video to -1,
+                R.string.hint_control_frequency to -1,
+                R.string.hint_empty to null,
+                R.string.hint_drone_initial_position to "-/-/-",
+                R.string.hint_drone_current_position to "-/-/-",
+                R.string.hint_drone_distance_to_ip to "-"
+            )
+        )
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BaseViewHolder {
-        return BaseViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_monitoring_status, parent, false));
+        return BaseViewHolder(
+            LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_monitoring_status, parent, false)
+        );
     }
 
     override fun getItemCount(): Int = status.size
@@ -76,7 +80,7 @@ class StatusAdapter : RecyclerView.Adapter<BaseViewHolder>() {
     }
 
     fun updateStatus(string: Int, data: Any?) {
-        for(pos in 0..status.size) {
+        for (pos in 0..status.size) {
             if (status[pos].first == string) {
                 status.removeAt(pos)
                 status.add(pos, string to data)
@@ -100,7 +104,8 @@ class MessageAdapter : RecyclerView.Adapter<BaseViewHolder>() {
     )
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BaseViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_message_info, parent, false)
+        val view =
+            LayoutInflater.from(parent.context).inflate(R.layout.item_message_info, parent, false)
         return BaseViewHolder(view)
     }
 
@@ -147,11 +152,11 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private val viewModel: CameraStreamVM by viewModels()
 
+    private var startPushingTime: Long? = null
+
     private val frameListener =
         ICameraStreamManager.CameraFrameListener { frameData, offset, length, width, height, format ->
-//            modifyGreenChannel(frameData, offset, width, height)
-
-            // draws the frame into the SurfaceView
+            // feed the video data to webRtc
             pushVideoToServer(frameData, offset, length, width, height)
         }
 
@@ -211,7 +216,10 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
         lifecycleScope.launch {
             viewModel.monitoringStatus.collect { status ->
-                (binding.rvStatus.adapter as? StatusAdapter)?.updateStatus(status.first, status.second)
+                (binding.rvStatus.adapter as? StatusAdapter)?.updateStatus(
+                    status.first,
+                    status.second
+                )
             }
         }
     }
@@ -261,9 +269,10 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         surface = holder.surface
         MediaDataCenter.getInstance().cameraStreamManager.addFrameListener(
             ComponentIndexType.LEFT_OR_MAIN,
-            ICameraStreamManager.FrameFormat.NV21,
+            ICameraStreamManager.FrameFormat.YUV420_888,
             frameListener
         )
+        startPushingTime = System.nanoTime()
 
         MediaDataCenter.getInstance().cameraStreamManager.putCameraStreamSurface(
             ComponentIndexType.LEFT_OR_MAIN,
@@ -284,42 +293,13 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         Log.d("CameraStream", "frameListener removed")
     }
 
-    private fun modifyGreenChannel(frameData: ByteArray, offset: Int, width: Int, height: Int) {
-        Log.d("CameraStream", "First line of modifyGreenChannel method")
-
-        // Validate parameters first
-        if (offset < 0) {
-            Log.e("CameraStream", "Invalid negative offset: $offset")
-            return
-        }
-
-        // Add counter for log throttling
-        var iterationCount = 0
-
-        // Process pixels assuming 4-byte format (e.g., RGBA)
-        // Now starts from 0 instead of offset, with step=4
-        for (i in 0 until (frameData.size - 1) step 4) {
-            // Only log every 200,000 iterations
-            if (iterationCount++ % 200000 == 0) {
-                Log.d("CameraStream", "Processing iteration $iterationCount")
-                Log.d("CameraStream", "i: $i")
-            }
-
-            // Get and modify green channel
-            val greenValue = frameData[i + 1]
-            val newGreen = (greenValue + 20).coerceAtMost(0xFE).toByte()
-
-            if (iterationCount % 200000 == 0) {
-                Log.d("CameraStream", "Original green: $greenValue, New green: $newGreen")
-            }
-
-            frameData[i + 1] = newGreen
-        }
-
-        Log.d("CameraStream", "Completed processing. Total iterations: $iterationCount")
-    }
-
-    private fun pushVideoToServer(frameData: ByteArray, offset: Int, length: Int, width: Int, height: Int) {
+    private fun pushVideoToServer(
+        frameData: ByteArray,
+        offset: Int,
+        length: Int,
+        width: Int,
+        height: Int,
+    ) {
         if (binding.root.getChildAt(0) !is SurfaceView) {
             return
         }
@@ -330,10 +310,36 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             surface?.let { _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
-                        val nv21Buffer = NV21Buffer(frameData, width, height, null)
-                        val timestampNS: Long =
-                            TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime())
-                        val videoFrame = VideoFrame(nv21Buffer, 0, timestampNS)
+                        val chromaHeight = (height + 1) / 2
+                        val strideUV = (width + 1) / 2
+                        val yPos = 0
+                        val uPos = yPos + width * height
+                        val vPos = uPos + strideUV * chromaHeight
+                        val buffer = ByteBuffer.allocateDirect(length - offset)
+                        buffer.put(frameData, offset, length)
+                        buffer.slice()
+                        buffer.position(yPos)
+                        buffer.limit(uPos)
+                        val dataY = buffer.slice()
+                        buffer.position(uPos)
+                        buffer.limit(vPos)
+                        val dataU = buffer.slice()
+                        buffer.position(vPos)
+                        buffer.limit(vPos + strideUV * chromaHeight)
+                        val dataV = buffer.slice()
+                        val yuv420Buffer = JavaI420Buffer.wrap(
+                            width,
+                            height,
+                            dataY,
+                            width,
+                            dataU,
+                            strideUV,
+                            dataV,
+                            strideUV
+                        ) {}
+
+                        val videoFrame =
+                            VideoFrame(yuv420Buffer, 0, System.nanoTime() - startPushingTime!!)
                         it.capturerObserver!!.onFrameCaptured(videoFrame)
                         videoFrame.release()
                     } catch (e: Exception) {
@@ -362,7 +368,9 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
             if (surfaceView.tag is VideoCapturer) {
                 // using the drone camera
-                MediaDataCenter.getInstance().cameraStreamManager.removeCameraStreamSurface(surfaceView.holder.surface)
+                MediaDataCenter.getInstance().cameraStreamManager.removeCameraStreamSurface(
+                    surfaceView.holder.surface
+                )
             }
         }
     }
