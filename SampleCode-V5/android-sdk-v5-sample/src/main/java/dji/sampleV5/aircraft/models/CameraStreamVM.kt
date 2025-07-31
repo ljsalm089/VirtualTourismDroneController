@@ -10,10 +10,10 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
-import dji.sampleV5.aircraft.DJIVideoCapturer
 import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.webrtc.ConnectionInfo
 import dji.sampleV5.aircraft.webrtc.DATA_RECEIVER
+import dji.sampleV5.aircraft.webrtc.DJIVideoCapturer
 import dji.sampleV5.aircraft.webrtc.DataFromChannel
 import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION
 import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_SUCCESS_FOR_PUBLICATION
@@ -144,6 +144,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         webRtcManager.stop()
 
         audioSource?.dispose()
+        videoCapturer?.stopCapture()
         videoCapturer?.dispose()
         videoSource?.dispose()
 
@@ -203,7 +204,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     private fun initialDroneControlling() {
         ProductKey.KeyConnection.create().listen(this, getOnce = false) {
             val isConnected = true == it
-            showMessageOnLogAndScreen(if (isConnected) Log.INFO else Log.ERROR, "The drone is ${if (isConnected) "connected" else "disconnected"}.")
+            showMessageOnLogAndScreen(
+                if (isConnected) Log.INFO else Log.ERROR,
+                "The drone is ${if (isConnected) "connected" else "disconnected"}."
+            )
         }
     }
 
@@ -217,7 +221,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         }
         eventHandles[EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION] = {
             // create connection error, the data is null
-            showMessageOnLogAndScreen(Log.ERROR, "Failed to create a connection for video publication")
+            showMessageOnLogAndScreen(
+                Log.ERROR,
+                "Failed to create a connection for video publication"
+            )
 
             stopPublish()
         }
@@ -233,6 +240,11 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
                 exception = null
             }
             showMessageOnLogAndScreen(Log.ERROR, msg, exception)
+
+            webRtcManager.stop()
+            videoCapturer?.stopCapture()
+            videoCapturer?.dispose()
+            videoCapturer = null
         }
         eventHandles[EVENT_RECEIVED_DATA] = {
             val data = it.data as? DataFromChannel
@@ -258,7 +270,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
 
         }
         eventHandles[EVENT_LOG_MESSAGE] = {
-            (it.data as? Pair<Int, String>)?.let { data->
+            (it.data as? Pair<Int, String>)?.let { data ->
                 showMessageOnLogAndScreen(data.first, data.second)
             }
         }
@@ -274,8 +286,12 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
                 // obtain the push video frame rate
                 val result = webRtcManager.obtainStatisticsInformation()
                 result?.statsMap?.forEach {
-                    if ("outbound-rtp" == it.value.type && "video".equals(it.value.members["kind"]?.toString(), true)) {
-                        it.value.members["framesPerSecond"]?.let { fps-> monitoringStatus.emit(R.string.hint_push_video to fps) }
+                    if ("outbound-rtp" == it.value.type && "video".equals(
+                            it.value.members["kind"]?.toString(),
+                            true
+                        )
+                    ) {
+                        it.value.members["framesPerSecond"]?.let { fps -> monitoringStatus.emit(R.string.hint_push_video to fps) }
                     }
                 }
             }
@@ -283,62 +299,56 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     }
 
     private fun attachVideoAndAudioToConnection(connectionInfo: ConnectionInfo) {
-        if (USE_DRONE_CAMERA) {
-            videoCapturer = DJIVideoCapturer()
-            videoSource =
-                connectionInfo.connectionFactory.createVideoSource(videoCapturer!!.isScreencast)
-        } else {
+        videoCapturer = if (USE_DRONE_CAMERA) DJIVideoCapturer(scope = viewModelScope) else {
             val videoCapturer = createCameraCapturer(Camera2Enumerator(application))
             if (null == videoCapturer) {
                 Log.e(TAG, "unable to create the video capturer!")
                 return
             }
-            this.videoCapturer = videoCapturer
-            videoSource =
-                connectionInfo.connectionFactory.createVideoSource(videoCapturer.isScreencast)
-
-            // Create AudioSource with constraints
-            val mediaConstraints = MediaConstraints()
-            mediaConstraints.mandatory.add(
-                MediaConstraints.KeyValuePair(
-                    "googEchoCancellation",
-                    "true"
-                )
-            )
-            mediaConstraints.mandatory.add(
-                MediaConstraints.KeyValuePair(
-                    "googNoiseSuppression",
-                    "true"
-                )
-            )
-            audioSource = connectionInfo.connectionFactory.createAudioSource(mediaConstraints)
-            val audioTrack =
-                connectionInfo.connectionFactory.createAudioTrack("ARDAMSa0", audioSource)
-
-            connectionInfo.connection.addTrack(audioTrack, listOf("audioId"))
+            videoCapturer
         }
+        videoSource =
+            connectionInfo.connectionFactory.createVideoSource(videoCapturer!!.isScreencast)
 
-        videoCapturer?.let {
-            it.initialize(
-                SurfaceTextureHelper.create("CaptureThread", connectionInfo.eglBase.eglBaseContext),
-                application, videoSource!!.capturerObserver
+        // Create AudioSource with constraints
+        val mediaConstraints = MediaConstraints()
+        mediaConstraints.mandatory.add(
+            MediaConstraints.KeyValuePair(
+                "googEchoCancellation",
+                "true"
             )
-            it.startCapture(1280, 720, 30)
+        )
+        mediaConstraints.mandatory.add(
+            MediaConstraints.KeyValuePair(
+                "googNoiseSuppression",
+                "true"
+            )
+        )
+        audioSource = connectionInfo.connectionFactory.createAudioSource(mediaConstraints)
+        val audioTrack =
+            connectionInfo.connectionFactory.createAudioTrack("ARDAMSa0", audioSource)
 
-            val localVideoTrack =
-                connectionInfo.connectionFactory.createVideoTrack("videoTrack", videoSource)
-            videoTrackUpdate.postValue(
-                VideoTrackAdded(connectionInfo.eglBase, localVideoTrack, it, USE_DRONE_CAMERA)
-            )
-            val sender = connectionInfo.connection.addTrack(localVideoTrack, listOf("streamId"))
-            val parameters = sender.parameters
-            for (parameter in parameters.encodings) {
-                parameter.minBitrateBps = 4500000
-                parameter.maxBitrateBps = 6000000
-                parameter.maxFramerate = 60
-            }
-            sender.parameters = parameters
+        connectionInfo.connection.addTrack(audioTrack, listOf("audioId"))
+
+        videoCapturer!!.initialize(
+            SurfaceTextureHelper.create("CaptureThread", connectionInfo.eglBase.eglBaseContext),
+            application, videoSource!!.capturerObserver
+        )
+        videoCapturer!!.startCapture(1280, 720, 30)
+
+        val localVideoTrack =
+            connectionInfo.connectionFactory.createVideoTrack("videoTrack", videoSource)
+        videoTrackUpdate.postValue(
+            VideoTrackAdded(connectionInfo.eglBase, localVideoTrack, videoCapturer!!, USE_DRONE_CAMERA)
+        )
+        val sender = connectionInfo.connection.addTrack(localVideoTrack, listOf("streamId"))
+        val parameters = sender.parameters
+        for (parameter in parameters.encodings) {
+            parameter.minBitrateBps = 4500000
+            parameter.maxBitrateBps = 6000000
+            parameter.maxFramerate = 60
         }
+        sender.parameters = parameters
     }
 
     private fun createCameraCapturer(enumerator: Camera2Enumerator): CameraVideoCapturer? {
@@ -370,7 +380,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     }
 
     private fun showMessageOnLogAndScreen(level: Int, msg: String, exception: Exception? = null) {
-        Log.println(level, TAG, "$msg${exception?.let { "\n" + Log.getStackTraceString(it) } ?: ""}")
+        Log.println(
+            level,
+            TAG,
+            "$msg${exception?.let { "\n" + Log.getStackTraceString(it) } ?: ""}")
 
         viewModelScope.launch {
             message.emit(level to msg)

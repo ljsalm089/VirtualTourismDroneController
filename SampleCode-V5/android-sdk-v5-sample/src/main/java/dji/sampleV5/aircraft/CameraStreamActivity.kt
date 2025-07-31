@@ -25,15 +25,11 @@ import dji.sampleV5.aircraft.utils.BaseViewHolder
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.webrtc.EglBase
-import org.webrtc.JavaI420Buffer
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoCapturer
-import org.webrtc.VideoFrame
 import org.webrtc.VideoTrack
-import java.nio.ByteBuffer
 import java.util.Random
 
 private val TAG = "CameraStreamActivity"
@@ -152,14 +148,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private val viewModel: CameraStreamVM by viewModels()
 
-    private var startPushingTime: Long? = null
-
-    private val frameListener =
-        ICameraStreamManager.CameraFrameListener { frameData, offset, length, width, height, format ->
-            // feed the video data to webRtc
-            pushVideoToServer(frameData, offset, length, width, height)
-        }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCameraStreamBinding.inflate(layoutInflater)
@@ -267,12 +255,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         surface = holder.surface
-        MediaDataCenter.getInstance().cameraStreamManager.addFrameListener(
-            ComponentIndexType.LEFT_OR_MAIN,
-            ICameraStreamManager.FrameFormat.YUV420_888,
-            frameListener
-        )
-        startPushingTime = System.nanoTime()
 
         MediaDataCenter.getInstance().cameraStreamManager.putCameraStreamSurface(
             ComponentIndexType.LEFT_OR_MAIN,
@@ -289,69 +271,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         // clean up when the surface is destroyed
         surface = null
-        MediaDataCenter.getInstance().cameraStreamManager.removeFrameListener(frameListener)
-        Log.d("CameraStream", "frameListener removed")
-    }
-
-    private fun pushVideoToServer(
-        frameData: ByteArray,
-        offset: Int,
-        length: Int,
-        width: Int,
-        height: Int,
-    ) {
-        if (binding.root.getChildAt(0) !is SurfaceView) {
-            return
-        }
-
-        (binding.root.getChildAt(0).tag as? DJIVideoCapturer)?.let {
-            if (!it.isCapturing || null == it.capturerObserver) return
-
-            surface?.let { _ ->
-                lifecycleScope.launch(Dispatchers.IO) {
-                    try {
-                        val chromaHeight = (height + 1) / 2
-                        val strideUV = (width + 1) / 2
-                        val yPos = 0
-                        val uPos = yPos + width * height
-                        val vPos = uPos + strideUV * chromaHeight
-                        val buffer = ByteBuffer.allocateDirect(length - offset)
-                        buffer.put(frameData, offset, length)
-                        buffer.slice()
-                        buffer.position(yPos)
-                        buffer.limit(uPos)
-                        val dataY = buffer.slice()
-                        buffer.position(uPos)
-                        buffer.limit(vPos)
-                        val dataU = buffer.slice()
-                        buffer.position(vPos)
-                        buffer.limit(vPos + strideUV * chromaHeight)
-                        val dataV = buffer.slice()
-                        val yuv420Buffer = JavaI420Buffer.wrap(
-                            width,
-                            height,
-                            dataY,
-                            width,
-                            dataU,
-                            strideUV,
-                            dataV,
-                            strideUV
-                        ) {}
-
-                        val videoFrame =
-                            VideoFrame(yuv420Buffer, 0, System.nanoTime() - startPushingTime!!)
-                        it.capturerObserver!!.onFrameCaptured(videoFrame)
-                        videoFrame.release()
-                    } catch (e: Exception) {
-                        Log.e("CameraStream", "Failed to draw frame/set videoFrame: ${e.message}")
-                    }
-                }
-                ""
-            } ?: Log.e(
-                "CameraStream",
-                "Surface is null"
-            )
-        }
     }
 
     private fun releaseSurfaceView() {
@@ -379,9 +298,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         releaseSurfaceView()
 
         super.onDestroy()
-
-        // Cleanup
-        MediaDataCenter.getInstance().cameraStreamManager.removeFrameListener(frameListener)
     }
 
     override fun onRequestPermissionsResult(
