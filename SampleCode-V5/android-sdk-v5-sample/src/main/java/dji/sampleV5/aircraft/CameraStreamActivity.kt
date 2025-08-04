@@ -162,6 +162,9 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         viewModel.getReadyStatus.observe(this) {
             binding.btnGetReadyToControl.updateTextColor(it)
         }
+        viewModel.abortBtnStatus.observe(this) {
+            binding.btnAbortRemoteControl.updateTextColor(it)
+        }
         viewModel.initialize(this.application)
 
         binding.btnStartPublishing.setOnClickListener {

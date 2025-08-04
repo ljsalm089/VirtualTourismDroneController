@@ -87,6 +87,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
     val getReadyStatus = MutableLiveData<Boolean>()
     val publishBtnStatus = MutableLiveData<Boolean>()
     val stopBtnStatus = MutableLiveData<Boolean>()
+    val abortBtnStatus = MutableLiveData<Boolean>()
 
     val monitoringStatus = MutableSharedFlow<Pair<Int, Any?>>(extraBufferCapacity = Int.MAX_VALUE)
 
@@ -111,6 +112,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent> {
         getReadyStatus.value = false
         stopBtnStatus.value = false
         publishBtnStatus.value = true
+        abortBtnStatus.value = true
 
         initializeEventHandles()
         initialDroneControlling()

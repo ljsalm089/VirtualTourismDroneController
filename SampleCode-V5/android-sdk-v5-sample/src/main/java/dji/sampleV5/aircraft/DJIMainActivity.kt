@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -96,7 +95,7 @@ abstract class DJIMainActivity : AppCompatActivity() {
         btnLiveStreamSetup()
         btnGetByteStreamSetup()
         btnVirtualStickFragment()
-        btnCameraStreamActivitySetup()
+        clickEventInitialization()
 
     } //end of onCreate
 
@@ -121,7 +120,7 @@ abstract class DJIMainActivity : AppCompatActivity() {
         }
     }
 
-    fun btnCameraStreamActivitySetup() {
+    fun clickEventInitialization() {
         binding.btnDroneStreaming.setOnClickListener {
             if (USE_DRONE_CAMERA && true != binding.btnDroneStreaming.tag) {
                 showToast("The drone is not connected!")
@@ -129,6 +128,14 @@ abstract class DJIMainActivity : AppCompatActivity() {
             }
             val intent = Intent(this, CameraStreamActivity::class.java)
             startActivity(intent)
+        }
+
+        binding.btnGetByteStream.setOnClickListener {
+            if (true != binding.btnDroneStreaming.tag) {
+                showToast("The drone is not connected!!!")
+                return@setOnClickListener
+            }
+            startActivity(Intent(this, GPSMeasurementActivity::class.java))
         }
     }
 

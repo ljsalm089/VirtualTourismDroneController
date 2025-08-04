@@ -383,4 +383,13 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_virtual_stick_fragment"
         app:layout_constraintStart_toEndOf="@+id/view_info_panel"/>
 
+    <Button
+        android:id="@+id/gps_measurement"
+        android:layout_width="wrap_content"
+        app:layout_constraintStart_toEndOf="@+id/view_info_panel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_drone_streaming"
+        android:text="GPS measurement"
+        android:layout_height="wrap_content"/>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

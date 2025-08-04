@@ -20,7 +20,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <meta-data
         android:name="com.google.android.geo.API_KEY"
-        android:value="${GMAP_API_KEY}" />
+        android:value="${MAPS_API_KEY}" />
 
     <uses-feature
         android:name="android.hardware.usb.host"
@@ -122,6 +122,10 @@ App.Compat theme or something - 5.3 Tuesday 10th -->
             android:screenOrientation="landscape"
             android:theme="@style/full_screen_theme" />
         <activity android:name=".CameraStreamActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/full_screen_theme"/>
+        <activity android:name=".GPSMeasurementActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:theme="@style/full_screen_theme"/>
