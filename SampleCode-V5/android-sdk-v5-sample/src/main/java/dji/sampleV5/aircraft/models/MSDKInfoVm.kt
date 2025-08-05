@@ -1,5 +1,6 @@
 package dji.sampleV5.aircraft.models
 
+import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import dji.sampleV5.aircraft.data.DEFAULT_STR
 import dji.sampleV5.aircraft.data.MSDKInfo
@@ -80,6 +81,9 @@ class MSDKInfoVm : DJIViewModel() {
         FlightControllerKey.KeyConnection.create().listen(this) {
             LogUtils.i(tag, "KeyConnection:$it")
             updateFirmwareVersion()
+        }
+        FlightControllerKey.KeyAircraftLocation3D.create().listen(this) {
+            LogUtils.i(tag, "Received gps location from drone")
         }
 
         AreaCodeManager.getInstance().addAreaCodeChangeListener(areaCodeChangeListener)

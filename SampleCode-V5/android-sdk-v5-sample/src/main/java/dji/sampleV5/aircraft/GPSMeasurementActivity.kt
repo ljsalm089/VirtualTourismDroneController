@@ -72,7 +72,7 @@ class GPSMeasurementActivity : AppCompatActivity() {
         }
 
         viewModel.droneLocation.observe(this) { loc ->
-            "${formatLocation(loc.latitude)} / ${formatLocation(loc.longitude)} / ${
+            "Drone Location: ${formatLocation(loc.latitude)} / ${formatLocation(loc.longitude)} / ${
                 formatLocation(
                     loc.height
                 )
@@ -80,9 +80,16 @@ class GPSMeasurementActivity : AppCompatActivity() {
         }
 
         viewModel.gapDistance.observe(this) { gap ->
-            "${formatLocation(gap.first)} / ${formatLocation(gap.second)}".also {
+            "Horizontal/Vertical Distance (m): ${formatLocation(gap.first)} / ${formatLocation(gap.second)}".also {
                 binding.tvGapDistance.text = it
             }
+        }
+        viewModel.recordStatus.observe(this) { status ->
+            binding.btnStartRecord.text = if (status) "STOP" else "Record"
+        }
+
+        viewModel.recordFilePath.observe(this) { path ->
+            "GPS Records file path: ${path ?: "--"}".also { binding.tvFilePath.text = it }
         }
     }
 
@@ -107,7 +114,7 @@ class GPSMeasurementActivity : AppCompatActivity() {
     private fun updateBenchmarkLocation() {
         val loc = viewModel.mapLocation.value
 
-        "${formatLocation(loc?.latitude)} / ${formatLocation(loc?.longitude)} / ${formatLocation(loc?.height)}".also {
+        "Benchmark Location: ${formatLocation(loc?.latitude)} / ${formatLocation(loc?.longitude)} / ${formatLocation(loc?.height)}".also {
             binding.tvBenchmarkLocation.text = it
         }
     }
@@ -180,6 +187,9 @@ class GPSMeasurementActivity : AppCompatActivity() {
                 }
 
             }
+        binding.btnStartRecord.setOnClickListener {
+            viewModel.startOrStopRecord()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
