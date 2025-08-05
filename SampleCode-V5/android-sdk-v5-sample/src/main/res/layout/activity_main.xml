@@ -384,7 +384,7 @@
         app:layout_constraintStart_toEndOf="@+id/view_info_panel"/>
 
     <Button
-        android:id="@+id/gps_measurement"
+        android:id="@+id/btn_gps_measurement"
         android:layout_width="wrap_content"
         app:layout_constraintStart_toEndOf="@+id/view_info_panel"
         app:layout_constraintEnd_toEndOf="parent"

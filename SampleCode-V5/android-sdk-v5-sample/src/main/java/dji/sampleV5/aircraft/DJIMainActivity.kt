@@ -130,11 +130,11 @@ abstract class DJIMainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        binding.btnGetByteStream.setOnClickListener {
-            if (true != binding.btnDroneStreaming.tag) {
-                showToast("The drone is not connected!!!")
-                return@setOnClickListener
-            }
+        binding.btnGpsMeasurement.setOnClickListener {
+//            if (true != binding.btnDroneStreaming.tag) {
+//                showToast("The drone is not connected!!!")
+//                return@setOnClickListener
+//            }
             startActivity(Intent(this, GPSMeasurementActivity::class.java))
         }
     }
