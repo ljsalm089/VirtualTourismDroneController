@@ -10,19 +10,34 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.opencsv.bean.CsvBindByName
 import com.opencsv.bean.CsvToBeanBuilder
-import dji.sdk.keyvalue.key.DJIKey
-import dji.sdk.keyvalue.key.FlightControllerKey
-import dji.sdk.keyvalue.key.KeyTools
+import dji.sdk.keyvalue.key.DJIKeyInfo
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyConnection
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyIsFlying
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyAircraftAttitude
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyAircraftVelocity
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSIsValid
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSInterferenceState
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSSignalLevel
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSSatelliteCount
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSModeFailureReason
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyAircraftLocation3D
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyCompassHeading
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyCompassState
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyCompassHasError
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyIMUCount
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyIMUCalibrationInfo
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyUltrasonicHeight
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyUltrasonicHasError
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindWarning
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindSpeed
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindDirection
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyIsNearDistanceLimit
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyIsNearHeightLimit
 import dji.sdk.keyvalue.value.common.LocationCoordinate3D
-import dji.v5.et.cancelListen
 import dji.v5.et.create
-import dji.v5.et.get
 import dji.v5.et.listen
+import dji.v5.manager.KeyManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
@@ -89,17 +104,11 @@ class GPSMeasurementVM : ViewModel() {
 
     val recordFilePath: MutableLiveData<String?> = MutableLiveData()
 
-    val droneStatus: MutableLiveData<Map<String, String>> = MutableLiveData()
+    val droneStatus = MutableLiveData(HashMap<String, String>())
 
     private lateinit var apiClient: FusedLocationProviderClient
 
-    private var djiLocationKey: DJIKey<LocationCoordinate3D>? = null
-
-    private var djiConnectionKey: DJIKey<Boolean>? = null
-
     private var currentRecordInfo: CurrentRecordInfo? = null
-
-    private var job: Job? = null
 
     @SuppressLint("MissingPermission")
     private fun changeToCurrentLocation() {
@@ -110,10 +119,137 @@ class GPSMeasurementVM : ViewModel() {
         }
     }
 
+    private fun formatInfo(any: Any?): String {
+        return any?.toString() ?: "--"
+    }
+
+    private fun <T> DJIKeyInfo<T>.listen(hashKey: String, logPrefix: String, converter: (T?) -> String) {
+        this.create().listen(this@GPSMeasurementVM) { t->
+            val info = converter.invoke(t)
+
+            Log.d(TAG, "$logPrefix: $info")
+
+            droneStatus.value?.set(hashKey, info)
+            droneStatus.postValue(droneStatus.value)
+        }
+    }
+
+    private fun initObserveEvents() {
+        KeyConnection.listen("Flight control connection", "Flight control is connected") {
+            "$it"
+        }
+        KeyIsFlying.listen("Drone is flying", "Drone is flying") {
+            "$it"
+        }
+        KeyAircraftAttitude.listen("Drone attitude (Y/R/P)", "Update drone's attitude (Y/R/P)") {
+            "${formatInfo(it?.yaw)} / ${formatInfo(it?.roll)} / ${formatInfo(it?.pitch)}"
+        }
+        KeyAircraftVelocity.listen("Drone velocity (X/Y/Z)", "Update drone's velocity (X/Y/Z)") {
+            "${formatInfo(it?.x)} / ${formatInfo(it?.y)} / ${formatInfo(it?.z)}"
+        }
+        KeyGPSIsValid.listen("Is GPS valid", "if gps is valid on the drone") {
+            formatInfo(it)
+        }
+        KeyGPSInterferenceState.listen("GPS interference state", "drone gps interference state") {
+            formatInfo(it?.name)
+        }
+        KeyGPSSignalLevel.listen("Drone GPS signal level", "drone gps signal level") {
+            formatInfo(it?.name)
+        }
+        KeyGPSSatelliteCount.listen("GPS satellite count", "current gps satellite count") {
+            "$it"
+        }
+        KeyGPSModeFailureReason.listen("GPS fail reason", "GPS mode failure reason") {
+            formatInfo(it?.name)
+        }
+        KeyCompassHeading.listen("Compass Heading", "Current compass heading") {
+            it.toString()
+        }
+        KeyCompassState.listen("Compass state", "Compass state update") {
+            val stringBuilder = StringBuilder()
+
+            it?.apply {
+                for (tmpState in this) {
+                    stringBuilder.append("${tmpState.compassSensorState},${tmpState.compassSensorValue}").append(" / ")
+                }
+            }
+
+            stringBuilder.toString()
+        }
+        KeyCompassHasError.listen("Compass error", "if compass has error") {
+            it.toString()
+        }
+        KeyUltrasonicHasError.listen("Ultrasonic error", "If ultrasonic has error") {
+            it.toString()
+        }
+        KeyUltrasonicHeight.listen("Ultrasonic height", "current height from ultrasonic:") {
+            it.toString()
+        }
+        KeyWindWarning.listen("Wind warning", "Received wind warning") {
+            formatInfo(it?.name)
+        }
+        KeyWindSpeed.listen("Wind speed (dm/s)", "Current wind speed (dm/s)") {
+            it.toString()
+        }
+        KeyWindDirection.listen("Wind direction", "Current wind direction") {
+            formatInfo(it?.name)
+        }
+        KeyIMUCount.listen("IMU count", "IMU count") {
+            it.toString()
+        }
+        KeyIMUCalibrationInfo.listen("IMU calibration", "IMU calibration information") {
+            formatInfo(it.toString())
+        }
+        KeyIsNearDistanceLimit.listen("Near distance limit", "Is current near distance limit") {
+            it.toString()
+        }
+        KeyIsNearHeightLimit.listen("Near height limit", "Is current near height limit") {
+            it.toString()
+        }
+
+        KeyAircraftLocation3D.create().listen(this) { loc ->
+            loc?.let {
+                Log.d(TAG, "Received location data from drone: $loc")
+                droneLocation.postValue(loc.toLocation())
+
+                // calculate gap distance between two locations.
+                mapLocation.value?.let { mapLoc ->
+                    val results = FloatArray(3)
+                    android.location.Location.distanceBetween(
+                        loc.latitude, loc.longitude,
+                        mapLocation.value!!.latitude!!, mapLocation.value!!.longitude!!, results
+                    )
+
+                    gapDistance.postValue(results[0] to loc.altitude.toFloat() - mapLoc.height!!)
+
+                    currentRecordInfo?.let {
+                        val newRecord = LocationRecord(
+                            it.benchMark.latitude,
+                            it.benchMark.longitude,
+                            it.benchMark.height,
+                            loc.latitude,
+                            loc.longitude,
+                            loc.altitude.toFloat(),
+                            System.currentTimeMillis(),
+                            it.benchMark.nodeId!!
+                        )
+                        it.locationRecords.add(newRecord)
+                    }
+                }
+            } ?: Log.d(TAG, "callback for aircraft location but the value is invalid")
+        }
+
+    }
+
     fun initialize(context: Context) {
         apiClient = LocationServices.getFusedLocationProviderClient(context)
 
         geodeticPosList.value = listOf()
+        gapDistance.value = Pair(null, null)
+        droneLocation.value = Location(null, null, null)
+        recordStatus.value = false
+        recordFilePath.value = null
+
         viewModelScope.launch(Dispatchers.IO) {
             val fs = context.assets.open("geodetic_db.csv")
 
@@ -126,66 +262,7 @@ class GPSMeasurementVM : ViewModel() {
             viewModelScope.launch(Dispatchers.Main) { geodeticPosList.postValue(geoPositionList) }
         }
 
-        djiConnectionKey = FlightControllerKey.KeyConnection.create()
-        djiConnectionKey?.listen(this@GPSMeasurementVM, true) { isConnected ->
-            Log.d(TAG, "Flight control is connected: $isConnected")
-
-            if (true != isConnected) return@listen
-
-            djiConnectionKey?.cancelListen(this@GPSMeasurementVM)
-
-            job?.cancel()
-
-            job = viewModelScope.launch (Dispatchers.IO) {
-                while (isActive) {
-                    val location = KeyTools.createKey(FlightControllerKey.KeyAircraftLocation3D).get()
-                    if (null == location) {
-                        Log.e(TAG, "Unable to get location of drone")
-                    } else {
-                        val loc = location
-
-                        Log.d(TAG, "Received location data from drone: $loc")
-                        droneLocation.postValue(loc.toLocation())
-
-                        // calculate gap distance between two locations.
-                        mapLocation.value?.let { mapLoc ->
-                            val results = FloatArray(3)
-                            android.location.Location.distanceBetween(
-                                loc.latitude, loc.longitude,
-                                mapLocation.value!!.latitude!!, mapLocation.value!!.longitude!!, results
-                            )
-
-                            gapDistance.postValue(results[0] to loc.altitude.toFloat() - mapLoc.height!!)
-
-                            currentRecordInfo?.let {
-                                val newRecord = LocationRecord(
-                                    it.benchMark.latitude,
-                                    it.benchMark.longitude,
-                                    it.benchMark.height,
-                                    loc.latitude,
-                                    loc.longitude,
-                                    loc.altitude.toFloat(),
-                                    System.currentTimeMillis(),
-                                    it.benchMark.nodeId!!
-                                )
-                                it.locationRecords.add(newRecord)
-                            }
-                        }
-                    }
-                    delay(1000)
-                }
-            }
-            djiLocationKey = KeyTools.createKey(FlightControllerKey.KeyAircraftLocation3D)
-            djiLocationKey?.listen(this, false) { loc ->
-                Log.d(TAG, "Obtain the location from the drone.")
-            }
-        }
-
-        gapDistance.value = Pair(null, null)
-        droneLocation.value = Location(null, null, null)
-
-        recordStatus.value = false
-        recordFilePath.value = null
+        initObserveEvents()
     }
 
     fun selectLocation(location: GeodeticLocation?) {
@@ -262,7 +339,6 @@ class GPSMeasurementVM : ViewModel() {
     }
 
     fun destroy() {
-        djiLocationKey?.cancelListen(this)
-        djiConnectionKey?.cancelListen(this)
+        KeyManager.getInstance().cancelListen(this)
     }
 }
