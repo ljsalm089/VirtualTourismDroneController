@@ -2,7 +2,6 @@ package dji.sampleV5.aircraft.models
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,41 +9,53 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.opencsv.bean.CsvBindByName
 import com.opencsv.bean.CsvToBeanBuilder
+import com.opencsv.bean.StatefulBeanToCsvBuilder
+import dji.sdk.keyvalue.key.BatteryKey.KeyBatteryTemperature
+import dji.sdk.keyvalue.key.BatteryKey.KeyBatteryTemperatureException
 import dji.sdk.keyvalue.key.DJIKeyInfo
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyConnection
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyIsFlying
 import dji.sdk.keyvalue.key.FlightControllerKey.KeyAircraftAttitude
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyAircraftVelocity
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSIsValid
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSInterferenceState
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSSignalLevel
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSSatelliteCount
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSModeFailureReason
 import dji.sdk.keyvalue.key.FlightControllerKey.KeyAircraftLocation3D
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyAircraftVelocity
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyCompassHasError
 import dji.sdk.keyvalue.key.FlightControllerKey.KeyCompassHeading
 import dji.sdk.keyvalue.key.FlightControllerKey.KeyCompassState
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyCompassHasError
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyIMUCount
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyConnection
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSInterferenceState
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSIsValid
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSModeFailureReason
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSSatelliteCount
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyGPSSignalLevel
 import dji.sdk.keyvalue.key.FlightControllerKey.KeyIMUCalibrationInfo
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyUltrasonicHeight
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyUltrasonicHasError
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindWarning
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindSpeed
-import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindDirection
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyIMUCount
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyIsFlying
 import dji.sdk.keyvalue.key.FlightControllerKey.KeyIsNearDistanceLimit
 import dji.sdk.keyvalue.key.FlightControllerKey.KeyIsNearHeightLimit
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyUltrasonicHasError
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyUltrasonicHeight
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindDirection
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindSpeed
+import dji.sdk.keyvalue.key.FlightControllerKey.KeyWindWarning
+import dji.sdk.keyvalue.value.common.LocationCoordinate2D
 import dji.sdk.keyvalue.value.common.LocationCoordinate3D
+import dji.v5.common.callback.CommonCallbacks
+import dji.v5.common.error.IDJIError
 import dji.v5.et.create
 import dji.v5.et.listen
 import dji.v5.manager.KeyManager
+import dji.v5.manager.aircraft.simulator.InitializationSettings
+import dji.v5.manager.aircraft.simulator.SimulatorManager
+import dji.v5.manager.aircraft.simulator.SimulatorState
+import dji.v5.manager.aircraft.simulator.SimulatorStatusListener
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import okhttp3.internal.closeQuietly
+import timber.log.Timber
+import java.io.File
+import java.io.FileWriter
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private const val TAG = "GPSMeasurementVM"
 
 data class GeodeticLocation(
     @CsvBindByName(column = "GeodeticCode") var geodeticCode: String? = null,
@@ -90,7 +101,7 @@ fun LocationCoordinate3D.toLocation(): Location {
     return Location(latitude, longitude, altitude.toFloat())
 }
 
-class GPSMeasurementVM : ViewModel() {
+class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
 
     val geodeticPosList: MutableLiveData<List<GeodeticLocation>> = MutableLiveData()
 
@@ -106,9 +117,13 @@ class GPSMeasurementVM : ViewModel() {
 
     val droneStatus = MutableLiveData(HashMap<String, String>())
 
+    val simulationStatus = MutableLiveData<Boolean>(false)
+
     private lateinit var apiClient: FusedLocationProviderClient
 
     private var currentRecordInfo: CurrentRecordInfo? = null
+
+    private lateinit var context: Context
 
     @SuppressLint("MissingPermission")
     private fun changeToCurrentLocation() {
@@ -123,11 +138,15 @@ class GPSMeasurementVM : ViewModel() {
         return any?.toString() ?: "--"
     }
 
-    private fun <T> DJIKeyInfo<T>.listen(hashKey: String, logPrefix: String, converter: (T?) -> String) {
-        this.create().listen(this@GPSMeasurementVM) { t->
+    private fun <T> DJIKeyInfo<T>.listen(
+        hashKey: String,
+        logPrefix: String,
+        converter: (T?) -> String,
+    ) {
+        this.create().listen(this@GPSMeasurementVM) { t ->
             val info = converter.invoke(t)
 
-            Log.d(TAG, "$logPrefix: $info")
+            Timber.d("$logPrefix: $info")
 
             droneStatus.value?.set(hashKey, info)
             droneStatus.postValue(droneStatus.value)
@@ -170,7 +189,8 @@ class GPSMeasurementVM : ViewModel() {
 
             it?.apply {
                 for (tmpState in this) {
-                    stringBuilder.append("${tmpState.compassSensorState},${tmpState.compassSensorValue}").append(" / ")
+                    stringBuilder.append("${tmpState.compassSensorState},${tmpState.compassSensorValue}")
+                        .append(" / ")
                 }
             }
 
@@ -206,10 +226,20 @@ class GPSMeasurementVM : ViewModel() {
         KeyIsNearHeightLimit.listen("Near height limit", "Is current near height limit") {
             it.toString()
         }
+        KeyBatteryTemperature.listen("Battery temperature", "Current battery temperature") {
+            it.toString()
+        }
+        KeyBatteryTemperatureException.listen(
+            "Battery temp. exception",
+            "battery temperature exception"
+        ) {
+            formatInfo(it?.toJson()?.toString())
+        }
+        SimulatorManager.getInstance().addSimulatorStateListener(this)
 
         KeyAircraftLocation3D.create().listen(this) { loc ->
             loc?.let {
-                Log.d(TAG, "Received location data from drone: $loc")
+                Timber.d("Received location data from drone: $loc")
                 droneLocation.postValue(loc.toLocation())
 
                 // calculate gap distance between two locations.
@@ -236,16 +266,16 @@ class GPSMeasurementVM : ViewModel() {
                         it.locationRecords.add(newRecord)
                     }
                 }
-            } ?: Log.d(TAG, "callback for aircraft location but the value is invalid")
+            } ?: Timber.d("callback for aircraft location but the value is invalid")
         }
-
     }
 
     fun initialize(context: Context) {
+        this.context = context
         apiClient = LocationServices.getFusedLocationProviderClient(context)
 
         geodeticPosList.value = listOf()
-        gapDistance.value = Pair(null, null)
+        gapDistance.value = Pair(0f, 0f)
         droneLocation.value = Location(null, null, null)
         recordStatus.value = false
         recordFilePath.value = null
@@ -271,7 +301,9 @@ class GPSMeasurementVM : ViewModel() {
         } ?: -1
 
         if (index < 0) {
-            changeToCurrentLocation()
+            if (this::apiClient.isInitialized) {
+                changeToCurrentLocation()
+            }
             return
         }
 
@@ -295,8 +327,17 @@ class GPSMeasurementVM : ViewModel() {
             recordStatus.postValue(false)
             recordFilePath.postValue(null)
 
-            viewModelScope.launch (Dispatchers.Main) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val dir = File(context.getExternalFilesDir(null), "GPSRecords")
+                if (!dir.exists()) {
+                    dir.mkdirs()
+                }
 
+                val targetFile = File(dir, recordInfo.fileName)
+                val writer = FileWriter(targetFile)
+                val csvWriter = StatefulBeanToCsvBuilder<LocationRecord>(writer).build();
+                csvWriter.write(recordInfo.locationRecords)
+                writer.closeQuietly()
             }
         } else {
             // not recording, need to start
@@ -316,7 +357,7 @@ class GPSMeasurementVM : ViewModel() {
                 }
             }
             if (null == benchMark) {
-                Log.e(TAG, "can not find a benchmark point from list")
+                Timber.e("can not find a benchmark point from list")
                 return
             }
             currentRecordInfo = CurrentRecordInfo(
@@ -326,7 +367,7 @@ class GPSMeasurementVM : ViewModel() {
                     SimpleDateFormat("yyyy_mm_dd_HH_MM_ss", Locale.getDefault()).format(
                         Date()
                     )
-                }"
+                }.csv"
             )
             recordFilePath.postValue(currentRecordInfo?.fileName)
             recordStatus.postValue(true)
@@ -338,7 +379,50 @@ class GPSMeasurementVM : ViewModel() {
         return true
     }
 
+    fun clickSimulation() {
+        if (!simulationStatus.value!!) {
+            val initializedLocation =
+                LocationCoordinate2D(mapLocation.value!!.latitude, mapLocation.value!!.longitude)
+            val settings = InitializationSettings(initializedLocation, 10)
+            SimulatorManager.getInstance()
+                .enableSimulator(settings, object : CommonCallbacks.CompletionCallback {
+                    override fun onSuccess() {
+                        Timber.i("Start the drone simulator successfully")
+                        simulationStatus.postValue(true)
+                    }
+
+                    override fun onFailure(p0: IDJIError) {
+                        Timber.e("Failed to start the simulator: $p0")
+                        simulationStatus.postValue(false)
+                    }
+
+                })
+        } else {
+            SimulatorManager.getInstance()
+                .disableSimulator(object : CommonCallbacks.CompletionCallback {
+                    override fun onSuccess() {
+                        Timber.i("Stop the drone simulator successfully")
+                        simulationStatus.postValue(false)
+                    }
+
+                    override fun onFailure(p0: IDJIError) {
+                        Timber.e("Failed to stop the simulator: $p0")
+                        simulationStatus.postValue(true)
+                    }
+
+                })
+        }
+    }
+
     fun destroy() {
         KeyManager.getInstance().cancelListen(this)
+        SimulatorManager.getInstance().removeSimulatorStateListener(this)
+    }
+
+    override fun onUpdate(state: SimulatorState) {
+        val simulatorState =
+            "MotorOn-${state.areMotorsOn()} / Flying-${state.isFlying} / YRP ${state.yaw}-${state.roll}-${state.pitch} / Position(XYZ) ${state.positionX}-${state.positionY}-${state.positionZ}"
+        Timber.i("current simulator state: $simulatorState")
+        droneStatus.value?.set("Simulator state", simulatorState)
     }
 }

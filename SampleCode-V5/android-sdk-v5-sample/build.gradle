@@ -152,6 +152,8 @@ dependencies {
 
     implementation deps.opencsv
 
+    implementation deps.timber
+
     implementation deps.playservicesmaps
     implementation deps.playserviceslocation
     implementation deps.playservicesbase

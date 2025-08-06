@@ -20,6 +20,7 @@ import com.google.android.gms.maps.model.MarkerOptions
 import dji.sampleV5.aircraft.databinding.ActivityGpsMeasurementBinding
 import dji.sampleV5.aircraft.models.GPSMeasurementVM
 import dji.sampleV5.aircraft.models.GeodeticLocation
+import java.util.Collections
 
 class GPSMeasurementActivity : AppCompatActivity() {
 
@@ -80,7 +81,7 @@ class GPSMeasurementActivity : AppCompatActivity() {
         }
 
         viewModel.gapDistance.observe(this) { gap ->
-            "Horizontal/Vertical Distance (m): ${formatLocation(gap.first)} / ${formatLocation(gap.second)}".also {
+            "Horizontal/Vertical Distance (m): ${formatLocation("%.2f".format(gap.first))} / ${formatLocation("%.2f".format(gap.second))}".also {
                 binding.tvGapDistance.text = it
             }
         }
@@ -90,6 +91,23 @@ class GPSMeasurementActivity : AppCompatActivity() {
 
         viewModel.recordFilePath.observe(this) { path ->
             "GPS Records file path: ${path ?: "--"}".also { binding.tvFilePath.text = it }
+        }
+        viewModel.droneStatus.observe(this) { status ->
+            val keys = status.keys.toMutableList()
+            keys.sort()
+
+            val sb = StringBuilder()
+            for (key in keys) {
+                sb.append(key).append(":").append("\t\t\t").append(status[key]).append("\n")
+            }
+            binding.tvDroneStatus.text = sb.toString()
+        }
+        viewModel.simulationStatus.observe(this) {
+            if (it!!) {
+                binding.btnSimulation.text = "Stop Sim."
+            } else {
+                binding.btnSimulation.text = "Start Sim."
+            }
         }
     }
 
@@ -190,6 +208,11 @@ class GPSMeasurementActivity : AppCompatActivity() {
         binding.btnStartRecord.setOnClickListener {
             viewModel.startOrStopRecord()
         }
+        binding.btnSimulation.setOnClickListener {
+            viewModel.clickSimulation()
+        }
+
+        "Log File Path: ${DJIApplication.getLogFile().absolutePath}".also { binding.tvLogPath.text = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
