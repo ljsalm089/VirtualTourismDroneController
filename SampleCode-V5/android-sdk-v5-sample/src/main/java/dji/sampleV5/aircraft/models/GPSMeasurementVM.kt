@@ -364,7 +364,7 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
                 ArrayList(),
                 benchMark,
                 "${benchMark.nodeId}_${
-                    SimpleDateFormat("yyyy_mm_dd_HH_MM_ss", Locale.getDefault()).format(
+                    SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.getDefault()).format(
                         Date()
                     )
                 }.csv"
