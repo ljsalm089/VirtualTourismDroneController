@@ -20,7 +20,6 @@ import com.google.android.gms.maps.model.MarkerOptions
 import dji.sampleV5.aircraft.databinding.ActivityGpsMeasurementBinding
 import dji.sampleV5.aircraft.models.GPSMeasurementVM
 import dji.sampleV5.aircraft.models.GeodeticLocation
-import java.util.Collections
 
 class GPSMeasurementActivity : AppCompatActivity() {
 
@@ -78,6 +77,9 @@ class GPSMeasurementActivity : AppCompatActivity() {
                     loc.height
                 )
             }".also { binding.tvDroneLocation.text = it }
+        }
+        viewModel.trackingType.observe(this) { types ->
+            (binding.spinnerTrackingType.adapter as? BaseAdapter)?.notifyDataSetChanged()
         }
 
         viewModel.gapDistance.observe(this) { gap ->
@@ -153,40 +155,49 @@ class GPSMeasurementActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
-        binding.spinnerLocations.adapter = object : BaseAdapter() {
-            override fun getCount(): Int {
-                return (viewModel.geodeticPosList.value?.size ?: 0) + 1
-            }
+        val dataCollections = listOf(viewModel.geodeticPosList, viewModel.trackingType)
+        val spinnerViews = listOf(binding.spinnerLocations, binding.spinnerTrackingType)
 
-            override fun getItem(position: Int): Any? {
-                return if (0 == position) null else viewModel.geodeticPosList.value?.get(position - 1)
-            }
+        for (i in 0..dataCollections.size -1) {
+            val spinner = spinnerViews[i]
+            val data = dataCollections[i]
 
-            override fun getItemId(position: Int): Long {
-                return getItem(position)?.hashCode()?.toLong() ?: 0
-            }
-
-            override fun getView(
-                position: Int,
-                convertView: View?,
-                parent: ViewGroup?
-            ): View? {
-                var view = convertView
-                if (view == null) {
-                    view = LayoutInflater.from(this@GPSMeasurementActivity)
-                        .inflate(R.layout.item_monitoring_status, parent, false)
-                    view.setPadding(resources.getDimensionPixelSize(R.dimen.uxsdk_10_dp))
-                    (view as TextView).setTextColor(Color.BLACK)
+            spinner.adapter = object : BaseAdapter() {
+                override fun getCount(): Int {
+                    return (data.value?.size ?: 0) + 1
                 }
-                (view as TextView).let {
-                    if (position == 0) {
-                        it.text = "--"
-                    } else {
-                        it.text = (getItem(position) as? GeodeticLocation)?.name ?: ""
+
+                override fun getItem(position: Int): Any? {
+                    return if (0 == position) null else data.value?.get(position - 1)
+                }
+
+                override fun getItemId(position: Int): Long {
+                    return getItem(position)?.hashCode()?.toLong() ?: 0
+                }
+
+                override fun getView(
+                    position: Int,
+                    convertView: View?,
+                    parent: ViewGroup?
+                ): View? {
+                    var view = convertView
+                    if (view == null) {
+                        view = LayoutInflater.from(this@GPSMeasurementActivity)
+                            .inflate(R.layout.item_monitoring_status, parent, false)
+                        view.setPadding(resources.getDimensionPixelSize(R.dimen.uxsdk_10_dp))
+                        (view as TextView).setTextColor(Color.BLACK)
                     }
-                }
+                    (view as TextView).let {
+                        if (position == 0) {
+                            it.text = "--"
+                        } else {
+                            val item = getItem(position)
+                            it.text = (item as? GeodeticLocation)?.name ?: item.toString()
+                        }
+                    }
 
-                return view
+                    return view
+                }
             }
         }
         binding.spinnerLocations.onItemSelectedListener =
@@ -205,6 +216,22 @@ class GPSMeasurementActivity : AppCompatActivity() {
                 }
 
             }
+
+        binding.spinnerTrackingType.onItemSelectedListener = object :AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long,
+            ) {
+                val trackingType = parent?.getItemAtPosition(position) as? String
+                viewModel.selectTrackingType(trackingType)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+            }
+
+        }
         binding.btnStartRecord.setOnClickListener {
             viewModel.startOrStopRecord()
         }

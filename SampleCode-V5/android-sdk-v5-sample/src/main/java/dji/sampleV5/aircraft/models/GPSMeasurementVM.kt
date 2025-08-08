@@ -79,6 +79,10 @@ data class LocationRecord(
     @CsvBindByName(column = "DroneAltitude") var dAltitude: Float,
     @CsvBindByName(column = "UpdateTimestamp") var timestamp: Long,
     @CsvBindByName(column = "BenchmarkId") var benchmarkId: String,
+    @CsvBindByName(column = "Offset") var offsetToBenchmark: Float,  // read distance of the offset
+    @CsvBindByName(column = "OffsetAroundLatitude") var offsetAroundLatitude: Float,  // the distance of the offset around the latitude (same latitude but change the longitude)
+    @CsvBindByName(column = "OffsetAroundLongitude") var offsetAroundLongitude: Float,  // the distance of the offset around the longitude (same longitude but change the latitude)
+    @CsvBindByName(column = "SatelliteCount") var satelliteCount: Int
 )
 
 data class CurrentRecordInfo(
@@ -105,6 +109,8 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
 
     val geodeticPosList: MutableLiveData<List<GeodeticLocation>> = MutableLiveData()
 
+    val trackingType: MutableLiveData<List<String>> = MutableLiveData()
+
     val mapLocation: MutableLiveData<Location> = MutableLiveData()
 
     val droneLocation: MutableLiveData<Location> = MutableLiveData()
@@ -122,6 +128,8 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
     private lateinit var apiClient: FusedLocationProviderClient
 
     private var currentRecordInfo: CurrentRecordInfo? = null
+
+    private var currentTrackingType: String? = null
 
     private lateinit var context: Context
 
@@ -249,8 +257,21 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
                         loc.latitude, loc.longitude,
                         mapLocation.value!!.latitude!!, mapLocation.value!!.longitude!!, results
                     )
+                    val offset = results[0]
+
+                    android.location.Location.distanceBetween(loc.latitude, mapLocation.value!!.longitude!!,
+                        mapLocation.value!!.latitude!!, mapLocation.value!!.longitude!!, results
+                    )
+                    val offsetAroundLatitude = results[0]
+
+                    android.location.Location.distanceBetween(mapLocation.value!!.latitude!!, loc.longitude,
+                        mapLocation.value!!.latitude!!, mapLocation.value!!.longitude!!, results
+                    )
+                    val offsetAroundLongitude = results[0]
 
                     gapDistance.postValue(results[0] to loc.altitude.toFloat() - mapLoc.height!!)
+
+                    val satelliteCount = droneStatus.value?.get("GPS satellite count")?.toInt() ?: 0
 
                     currentRecordInfo?.let {
                         val newRecord = LocationRecord(
@@ -261,7 +282,11 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
                             loc.longitude,
                             loc.altitude.toFloat(),
                             System.currentTimeMillis(),
-                            it.benchMark.nodeId!!
+                            it.benchMark.nodeId!!,
+                            offset,
+                            offsetAroundLatitude,
+                            offsetAroundLongitude,
+                            satelliteCount
                         )
                         it.locationRecords.add(newRecord)
                     }
@@ -279,6 +304,11 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
         droneLocation.value = Location(null, null, null)
         recordStatus.value = false
         recordFilePath.value = null
+        trackingType.postValue(listOf(
+            "Tracking Fixed Point",
+            "Tracking Linear Path",
+            "Tracking Flying Randomly"
+        ))
 
         viewModelScope.launch(Dispatchers.IO) {
             val fs = context.assets.open("geodetic_db.csv")
@@ -310,6 +340,10 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
         mapLocation.postValue(location!!.toLocation())
 
         // mark the selected item.
+    }
+
+    fun selectTrackingType(type: String?) {
+        this.currentTrackingType = type
     }
 
     fun startOrStopRecord() {
@@ -360,10 +394,12 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
                 Timber.e("can not find a benchmark point from list")
                 return
             }
+
+            val trackingTypeString = currentTrackingType?.replace(" ", "_") ?: "None"
             currentRecordInfo = CurrentRecordInfo(
                 ArrayList(),
                 benchMark,
-                "${benchMark.nodeId}_${
+                "${trackingTypeString}_${benchMark.nodeId}_${
                     SimpleDateFormat("yyyy_mm_dd_HH_MM_ss", Locale.getDefault()).format(
                         Date()
                     )

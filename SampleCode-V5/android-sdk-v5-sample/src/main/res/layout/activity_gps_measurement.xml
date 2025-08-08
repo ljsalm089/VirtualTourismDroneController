@@ -28,13 +28,22 @@
 
         <androidx.appcompat.widget.AppCompatSpinner
             android:id="@+id/spinner_locations"
-            android:background="@color/gray_light"
             android:layout_width="@dimen/uxsdk_300_dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             android:layout_margin="@dimen/uxsdk_15_dp"
             tools:listitem="@layout/item_monitoring_status"
             android:layout_height="wrap_content"/>
+
+        <androidx.appcompat.widget.AppCompatSpinner
+            android:id="@+id/spinner_tracking_type"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            tools:listitem="@layout/item_monitoring_status"
+            app:layout_constraintTop_toBottomOf="@+id/spinner_locations"
+            app:layout_constraintStart_toStartOf="parent"
+            android:layout_marginHorizontal="@dimen/uxsdk_15_dp"
+            android:layout_marginTop="@dimen/uxsdk_10_dp"/>
 
         <Button
             android:id="@+id/btn_start_record"
@@ -63,7 +72,7 @@
             style="@style/GPSInfoStyle"
             android:text="Benchmark Location: -/-/-"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/btn_start_record"
+            app:layout_constraintTop_toBottomOf="@+id/spinner_tracking_type"
             android:layout_height="wrap_content"/>
 
         <TextView
