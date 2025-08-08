@@ -2,6 +2,7 @@ package dji.sampleV5.aircraft
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
@@ -32,23 +33,25 @@ import org.webrtc.VideoCapturer
 import org.webrtc.VideoTrack
 import java.util.Random
 
-private val TAG = "CameraStreamActivity"
+class StatusAdapter(val context: Context) : RecyclerView.Adapter<BaseViewHolder>() {
 
-class StatusAdapter : RecyclerView.Adapter<BaseViewHolder>() {
-
-    private val status = ArrayList<Pair<Int, Any?>>()
+    private val status = ArrayList<Pair<String, String>>()
 
     init {
         status.addAll(
             listOf(
-                R.string.hint_data_latency to -1,
-                R.string.hint_fetch_video to -1,
-                R.string.hint_push_video to -1,
-                R.string.hint_control_frequency to -1,
-                R.string.hint_empty to null,
-                R.string.hint_drone_initial_position to "-/-/-",
-                R.string.hint_drone_current_position to "-/-/-",
-                R.string.hint_drone_distance_to_ip to "-"
+                context.getString(R.string.hint_data_latency) to "-1",
+                context.getString(R.string.hint_fetch_video) to "-1",
+                context.getString(R.string.hint_push_video) to "-1",
+                context.getString(R.string.hint_control_frequency) to "-1",
+                context.getString(R.string.hint_empty) to "",
+                context.getString(R.string.hint_drone_connected) to "-",
+                context.getString(R.string.hint_flight_control_connected) to "-",
+                context.getString(R.string.hint_empty) to "",
+                context.getString(R.string.hint_drone_initial_position) to "-/-/-",
+                context.getString(R.string.hint_drone_current_position) to "-/-/-",
+                context.getString(R.string.hint_drone_distance_to_ip) to "-/-",
+
             )
         )
     }
@@ -67,15 +70,14 @@ class StatusAdapter : RecyclerView.Adapter<BaseViewHolder>() {
         val text = holder.itemView as TextView
 
         val item = status[position]
-        if (null == item.second) {
-            text.setText(item.first)
+        if (item.second.isEmpty()) {
+            text.text = item.first
         } else {
-            val string = text.context.getString(item.first)
-            text.text = "$string: ${item.second}"
+            text.text = "${item.first}: ${item.second}"
         }
     }
 
-    fun updateStatus(string: Int, data: Any?) {
+    fun updateStatus(string: String, data: String) {
         for (pos in 0..status.size) {
             if (status[pos].first == string) {
                 status.removeAt(pos)
@@ -198,7 +200,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             it.setHasFixedSize(true)
         }
         binding.rvMessage.adapter = MessageAdapter()
-        binding.rvStatus.adapter = StatusAdapter()
+        binding.rvStatus.adapter = StatusAdapter(this)
 
         lifecycleScope.launch {
             viewModel.message.collect { msg ->

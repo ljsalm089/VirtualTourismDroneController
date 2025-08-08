@@ -1,7 +1,7 @@
 package dji.sampleV5.aircraft.webrtc
 
 import android.content.Context
-import android.util.Log
+import android.os.SystemClock
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
@@ -13,17 +13,34 @@ import org.webrtc.JavaI420Buffer
 import org.webrtc.SurfaceTextureHelper
 import org.webrtc.VideoCapturer
 import org.webrtc.VideoFrame
+import timber.log.Timber
 import java.nio.ByteBuffer
-
-
-private const val TAG = "DJIVideoCapturer"
+import java.util.LinkedList
 
 class DJIVideoCapturer(private val scope: CoroutineScope) : VideoCapturer {
+
+
+    private val queue = LinkedList<Long>()
 
     private val frameListener =
         ICameraStreamManager.CameraFrameListener { frameData, offset, length, width, height, _ ->
             // feed the video data to webRtc
+            val timestamp = SystemClock.elapsedRealtime()
+            queue.addFirst(timestamp)
             pushVideoToServer(frameData, offset, length, width, height)
+
+            var gap: Long = 0
+            do {
+                var last = try {
+                    queue.last
+                } catch (_: NoSuchElementException) {
+                    null
+                }
+                gap = (last?: 0) - timestamp
+                if (gap >= 1000L) {
+                    queue.removeLast()
+                }
+            } while (gap >= 1000L)
         }
 
     private var isCapturing = false
@@ -33,6 +50,8 @@ class DJIVideoCapturer(private val scope: CoroutineScope) : VideoCapturer {
     private lateinit var capturerObserver: CapturerObserver
 
     private var startCaptureTimeNS = System.nanoTime()
+
+    fun fetchFrameRate(): Int = queue.size
 
     override fun initialize(
         surfaceTextureHelper: SurfaceTextureHelper?,
@@ -94,43 +113,54 @@ class DJIVideoCapturer(private val scope: CoroutineScope) : VideoCapturer {
                 return@launch
             }
 
-            try {
-                val chromaHeight = (height + 1) / 2
-                val strideUV = (width + 1) / 2
-                val yPos = 0
-                val uPos = yPos + width * height
-                val vPos = uPos + strideUV * chromaHeight
-                val buffer = ByteBuffer.allocateDirect(length - offset)
-                buffer.put(frameData, offset, length)
-                buffer.slice()
-                buffer.position(yPos)
-                buffer.limit(uPos)
-                val dataY = buffer.slice()
-                buffer.position(uPos)
-                buffer.limit(vPos)
-                val dataU = buffer.slice()
-                buffer.position(vPos)
-                buffer.limit(vPos + strideUV * chromaHeight)
-                val dataV = buffer.slice()
-                val yuv420Buffer = JavaI420Buffer.wrap(
-                    width,
-                    height,
-                    dataY,
-                    width,
-                    dataU,
-                    strideUV,
-                    dataV,
-                    strideUV
-                ) {}
-
-                val videoFrame =
-                    VideoFrame(yuv420Buffer, 0, System.nanoTime() - startCaptureTimeNS)
-                capturerObserver.onFrameCaptured(videoFrame)
-                videoFrame.release()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to draw frame/set videoFrame: ${e.message}")
-            }
+            pushVideoToServerAsynchronously(height, width, length, offset, frameData)
         }
     }
+
+    private fun pushVideoToServerAsynchronously(
+        height: Int,
+        width: Int,
+        length: Int,
+        offset: Int,
+        frameData: ByteArray,
+    ) {
+        try {
+            val chromaHeight = (height + 1) / 2
+            val strideUV = (width + 1) / 2
+            val yPos = 0
+            val uPos = yPos + width * height
+            val vPos = uPos + strideUV * chromaHeight
+            val buffer = ByteBuffer.allocateDirect(length - offset)
+            buffer.put(frameData, offset, length)
+            buffer.slice()
+            buffer.position(yPos)
+            buffer.limit(uPos)
+            val dataY = buffer.slice()
+            buffer.position(uPos)
+            buffer.limit(vPos)
+            val dataU = buffer.slice()
+            buffer.position(vPos)
+            buffer.limit(vPos + strideUV * chromaHeight)
+            val dataV = buffer.slice()
+            val yuv420Buffer = JavaI420Buffer.wrap(
+                width,
+                height,
+                dataY,
+                width,
+                dataU,
+                strideUV,
+                dataV,
+                strideUV
+            ) {}
+
+            val videoFrame =
+                VideoFrame(yuv420Buffer, 0, System.nanoTime() - startCaptureTimeNS)
+            capturerObserver.onFrameCaptured(videoFrame)
+            videoFrame.release()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to draw frame/set videoFrame")
+        }
+    }
+
 
 }

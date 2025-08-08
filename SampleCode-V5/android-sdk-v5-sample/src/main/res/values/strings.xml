@@ -501,10 +501,21 @@ More refer to the release notes." </string>
     <string name="hint_data_latency">Data Latency(ms)</string>
     <string name="hint_fetch_video">Video Fetch Frame Rate(fps)</string>
     <string name="hint_push_video">Video Push Frame Rate(fps)</string>
+    <string name="hint_control_frequency">Drone Control Frequency(cps)</string>
+
+    <string name="hint_empty" />
+
+    <string name="hint_drone_connected">Drone Connected</string>
+    <string name="hint_flight_control_connected">Flight Control Connected</string>
+
     <string name="hint_drone_initial_position">Drone Initial Position</string>
     <string name="hint_drone_current_position">Drone Current Position</string>
-    <string name="hint_control_frequency">Drone Control Frequency(cps)</string>
     <string name="hint_drone_distance_to_ip">Distance to IP(m)</string>
-    <string name="hint_empty" />
+    <string name="hint_drone_attitude">Drone Attitude (Y/R/P)</string>
+    <string name="hint_battery_temperature">Battery Temp.(C)</string>
+    <string name="hint_wind_warning">Wind Warning</string>
+    <string name="hint_wind_speed">Wind Speed(dm/s)</string>
+    <string name="hint_wind_direction">Wind Direction</string>
+    <string name="hint_ultrasonic_height">Ultrasonic Height</string>
 
 </resources>
