@@ -72,11 +72,7 @@ class GPSMeasurementActivity : AppCompatActivity() {
         }
 
         viewModel.droneLocation.observe(this) { loc ->
-            "Drone Location: ${formatLocation(loc.latitude)} / ${formatLocation(loc.longitude)} / ${
-                formatLocation(
-                    loc.height
-                )
-            }".also { binding.tvDroneLocation.text = it }
+            binding.tvDroneLocation.text = loc
         }
         viewModel.trackingType.observe(this) { types ->
             (binding.spinnerTrackingType.adapter as? BaseAdapter)?.notifyDataSetChanged()
@@ -155,8 +151,8 @@ class GPSMeasurementActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
-        val dataCollections = listOf(viewModel.geodeticPosList, viewModel.trackingType)
-        val spinnerViews = listOf(binding.spinnerLocations, binding.spinnerTrackingType)
+        val dataCollections = listOf(viewModel.geodeticPosList, viewModel.trackingType, viewModel.logMarker)
+        val spinnerViews = listOf(binding.spinnerLocations, binding.spinnerTrackingType, binding.spinnerMarkerType)
 
         for (i in 0..dataCollections.size -1) {
             val spinner = spinnerViews[i]
@@ -230,13 +226,31 @@ class GPSMeasurementActivity : AppCompatActivity() {
 
             override fun onNothingSelected(parent: AdapterView<*>?) {
             }
-
         }
         binding.btnStartRecord.setOnClickListener {
             viewModel.startOrStopRecord()
         }
         binding.btnSimulation.setOnClickListener {
             viewModel.clickSimulation()
+        }
+        binding.btnMarkInLog.setOnClickListener {
+            val currentSelectedIndex = binding.spinnerMarkerType.selectedItemPosition
+            if (currentSelectedIndex < 0) {
+                return@setOnClickListener
+            }
+            val markContent = binding.spinnerMarkerType.getItemAtPosition(currentSelectedIndex) as String
+
+            var isMarking: Boolean = binding.btnMarkInLog.tag as? Boolean ?: false
+            isMarking = !isMarking
+            binding.btnMarkInLog.tag = isMarking
+
+            if (isMarking) {
+                binding.btnMarkInLog.text = "marking"
+            } else {
+                binding.btnMarkInLog.text = "Start Mark"
+            }
+
+            viewModel.markOnLog(isMarking, markContent)
         }
 
         "Log File Path: ${DJIApplication.getLogFile().absolutePath}".also { binding.tvLogPath.text = it }

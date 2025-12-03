@@ -97,3 +97,4 @@ android-sdk-v5-ivt/tools/results/
 
 # python related files
 __pycache__
+.Rproj.user

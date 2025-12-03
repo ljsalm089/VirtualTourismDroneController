@@ -29,7 +29,8 @@ open class DJIApplication : Application() {
     private val logConfig = listOf(
         MINIMUM_LOG_LEVEL to null,
         LogLevel.VERBOSE_DRONE_VELOCITY_READ_ACTIVELY to "velocity_changes_",
-        LogLevel.VERBOSE_HEADSET_DRONE_VELOCITY_CHANGES to "drone_headset_velocity_changes_"
+        LogLevel.VERBOSE_HEADSET_DRONE_VELOCITY_CHANGES to "drone_headset_velocity_changes_",
+        LogLevel.VERBOSE_DRONE_POSITION_CHANGE_BASED_ON_VELOCITY to "drone_position_changes_based_on_velocity_"
     )
 
     private val logTrees = ArrayList<Timber.Tree>(

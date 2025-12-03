@@ -45,11 +45,11 @@ def test_if_data_normally_distributed(
     result = {}
     for group_name, group_value in dataset.items():
         stat, p = shapiro(group_value[dimension])
-        print(
-            f"Group and dimension: {group_name} - {dimension}: W={stat:3f}, p={p:.3f}"
-        )
+        # print(
+        #     f"Group and dimension: {group_name} - {dimension}: W={stat:3f}, p={p:.3f}"
+        # )
         result[group_name] = {"stat": stat, "p": p}
-        all_normally_distributed &= p > 0.005
+        all_normally_distributed &= p > 0.05
     return all_normally_distributed, result
 
 
@@ -72,7 +72,19 @@ if __name__ == "__main__":
         )
         if all_normally_distributed:
             # ANOVA test
+            print(f"All data in {dimension} is normally distributed, p values:")
+            [print(f"{x}: {y['p']}") for x, y in result.items()]
             pass
         else:
+            print(f"Not all data in {dimension} is normally distributed, p values:")
+            [print(f"{x}: {y['p']}") for x, y in result.items()]
             # krushal test
-            nsd, result = run_krushal_test(data, dimension)
+            # nsd, result = run_krushal_test(data, dimension)
+        print("")
+        nsd, result = run_krushal_test(data, dimension)
+        if nsd:
+            print(f"NO significant difference between data in {dimension}")
+        else:
+            print(f"Significant difference between data in {dimension}")
+
+        print("\n")
