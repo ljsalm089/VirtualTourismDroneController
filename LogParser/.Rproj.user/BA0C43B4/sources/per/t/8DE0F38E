@@ -1,0 +1,28 @@
+{
+    "id": "8DE0F38E",
+    "path": "/Volumes/Linux/Codes_Linux/Android/SampleCodeV5/LogParser/data_analysis.R",
+    "project_path": "data_analysis.R",
+    "type": "r_source",
+    "hash": "4059111909",
+    "contents": "",
+    "dirty": false,
+    "created": 1762831669254.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "36,25",
+        "scrollLine": "20",
+        "disableDependencyDiscovery": "1"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1764498844,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1764498844169,
+    "read_only": false,
+    "read_only_alternatives": []
+}
