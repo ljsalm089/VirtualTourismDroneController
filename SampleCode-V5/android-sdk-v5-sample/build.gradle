@@ -152,6 +152,10 @@ dependencies {
 
     implementation deps.opencsv
 
+    implementation deps.boofcv_core
+    implementation deps.boofcv_android
+    implementation deps.boofcv_kotlin
+
     implementation deps.timber
 
     implementation deps.playservicesmaps
