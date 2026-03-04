@@ -267,83 +267,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         })
         binding.rvStatus.adapter = StatusAdapter(this)
 
-        binding.spinnerControlMode.adapter = object: BaseAdapter() {
-            override fun getCount() = 3
-
-            override fun getItem(position: Int): Any? {
-                return when(position) {
-                    0 -> "Thumbsticks"
-                    1 -> "Headset_Body_Based"
-                    else -> "Headset_NED_Based"
-                }
-            }
-
-            override fun getItemId(position: Int): Long = position.toLong()
-
-            override fun getView(
-                position: Int,
-                convertView: View?,
-                parent: ViewGroup?
-            ): View? {
-                val view = convertView ?: LayoutInflater.from(this@CameraStreamActivity).inflate(R.layout.item_monitoring_status, parent, false)
-
-                (view as? TextView)?.let {
-                    it.text = getItem(position).toString()
-                    it.setBackgroundColor(Color.TRANSPARENT)
-                    it.setPadding( resources.getDimensionPixelSize(R.dimen.uxsdk_10_dp))
-                }
-
-                return view
-            }
-
-        }
-        binding.spinnerControlMode.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                viewModel.remoteControlMode.postValue(position)
-                if (position == 0) {
-                    // thumbstick
-                    binding.thumbstickControlScaleSlider.visibility = View.VISIBLE
-                    binding.thumbstickRotationScaleSlider.visibility = View.VISIBLE
-                    binding.thumbstickUpdownScaleSlider.visibility = View.VISIBLE
-                    binding.positionChangeVelocityScale.visibility = View.GONE
-                } else {
-                    binding.thumbstickControlScaleSlider.visibility = View.GONE
-                    binding.thumbstickRotationScaleSlider.visibility = View.GONE
-                    binding.thumbstickUpdownScaleSlider.visibility = View.GONE
-                    binding.positionChangeVelocityScale.visibility = View.VISIBLE
-                }
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-            }
-        }
-
-        binding.thumbstickControlScaleSlider.value = THUMBSTICK_CONTROL_SCALE
-        binding.thumbstickControlScaleSlider.addOnChangeListener { slider, value, fromUser ->
-           THUMBSTICK_CONTROL_SCALE  = value
-        }
-        binding.thumbstickRotationScaleSlider.value = THUMBSTICK_ROTATION_SCALE
-        binding.thumbstickRotationScaleSlider.addOnChangeListener { slider, value, fromUser ->
-            THUMBSTICK_ROTATION_SCALE = value
-        }
-        binding.thumbstickUpdownScaleSlider.value = THUMBSTICK_UPDOWN_SCALE
-        binding.thumbstickUpdownScaleSlider.addOnChangeListener { slider, value, fromUser ->
-            THUMBSTICK_UPDOWN_SCALE = value
-        }
-        binding.positionChangeVelocityScale.value = HEADSET_MOVEMENT_SCALE
-        binding.positionChangeVelocityScale.addOnChangeListener { _, value, _ ->
-            HEADSET_MOVEMENT_SCALE = value
-        }
-
-        viewModel.remoteControlUIStatus.observe(this) {
-            binding.spinnerControlMode.isEnabled = it
-        }
-
         viewModel.initialize(this.application)
 
         lifecycleScope.launch(Dispatchers.Main) {
@@ -460,18 +383,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         super.onDestroy()
     }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == permissionReqCode) {
-            viewModel.onRequestPermission(permissions.toList())
-        }
-    }
-
 }
 
 fun Activity.showToast(msg: String) {

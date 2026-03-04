@@ -43,7 +43,8 @@ private const val VIDEO_ROOM_PLUGIN = "janus.plugin.videoroom"
 
 private const val iceServerUrl = "stun:stun.l.google.com:1930";
 
-private const val wsServerProtocolAndHostPort = "ws://10.112.53.217:8188"
+//private const val wsServerProtocolAndHostPort = "ws://10.112.53.217:8188"
+private const val wsServerProtocolAndHostPort = "ws://192.168.0.100:8188"
 
 private const val needProxy = false
 

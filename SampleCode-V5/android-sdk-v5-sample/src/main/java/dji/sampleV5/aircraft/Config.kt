@@ -9,7 +9,7 @@ var USE_DRONE_CAMERA = true
 
 
 // if use the mock control class to test the control data sent from the headset
-const val USE_MOCK_CONTROL = false
+const val USE_MOCK_CONTROL = true
 
 
 // the interval between sending two 'Ping' packet to test the data latency
@@ -43,15 +43,6 @@ val currentEFence = RectF(-10f, 10f, 10f, -10f)
 
 // the movement of the headset will be applied to the drone after applying this scale
 var HEADSET_MOVEMENT_SCALE = 0.8f
-
-// the value of the thumb sticks will be sent to the drone after applying this scale to control
-var THUMBSTICK_CONTROL_SCALE = 0.02f
-
-// the value of the thumb sticks will be sent to the drone after applying this scale to up & down control
-var THUMBSTICK_UPDOWN_SCALE = 0.1f
-
-// the value of the thumb sticks will be sent to the drone after applying this scale to rotation
-var THUMBSTICK_ROTATION_SCALE = 0.2f
 
 // velocity threshold of warning and ignore
 val VELOCITY_THRESHOLD_OF_WARNING_AND_IGNORE = 2.0

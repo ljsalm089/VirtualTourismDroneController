@@ -2,12 +2,7 @@ package dji.sampleV5.aircraft.virtualcontroller
 
 import android.os.SystemClock
 import dji.sampleV5.aircraft.HEADSET_MOVEMENT_SCALE
-import dji.sampleV5.aircraft.MAXIMUM_HEIGHT_FOR_THUMBSTICK_CONTROL
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
-import dji.sampleV5.aircraft.TEST_VIRTUAL_STICK_ADVANCED_PARAM
-import dji.sampleV5.aircraft.THUMBSTICK_CONTROL_SCALE
-import dji.sampleV5.aircraft.THUMBSTICK_ROTATION_SCALE
-import dji.sampleV5.aircraft.THUMBSTICK_UPDOWN_SCALE
 import dji.sampleV5.aircraft.VELOCITY_THRESHOLD_OF_WARNING_AND_IGNORE
 import dji.sampleV5.aircraft.models.ControlStatusData
 import dji.sampleV5.aircraft.models.Vector3D
@@ -23,12 +18,9 @@ import dji.sdk.keyvalue.value.flightcontroller.YawControlMode
 import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotation
 import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotationMode
 import dji.v5.et.action
-import dji.v5.manager.aircraft.virtualstick.Stick
 import dji.v5.manager.aircraft.virtualstick.VirtualStickManager
 import timber.log.Timber
 import kotlin.math.abs
-import kotlin.math.exp
-import kotlin.math.pow
 
 
 internal fun initDroneAdvancedParam(): VirtualStickFlightControlParam {
@@ -168,60 +160,6 @@ interface IControlStrategy {
     fun updateDroneSpatialPositionMonitor(monitor: IPositionMonitor?)
 }
 
-class ControlViaThumbSticks(private val maximumHeight: Double) : IControlStrategy {
-
-    init {
-        Timber.d("Create control strategy for thumb sticks")
-    }
-
-    private var monitor: IPositionMonitor? = null
-
-    override fun isVirtualStickNeeded() = true
-
-    override fun isVirtualStickAdvancedParamNeeded() = false
-
-    private var currentValidStatusTimestamp = 0L
-
-    override fun onControllerStatusData(data: ControlStatusData) {
-        if (currentValidStatusTimestamp > data.sampleTimestamp) {
-            // ignore the old data, avoid the situation in which the device receives the old data later than the new data
-            return
-        }
-        currentValidStatusTimestamp = data.sampleTimestamp
-
-        VirtualStickManager.getInstance().leftStick.let {
-            // rotation
-            it.horizontalPosition = (mappingValues(data.leftThumbStickValue.x) * THUMBSTICK_ROTATION_SCALE).toInt()
-            // upward and downward
-            if (null != monitor && monitor!!.getZ() >= maximumHeight && data.leftThumbStickValue.y > 0) {
-                it.verticalPosition = 0
-            } else {
-                it.verticalPosition =
-                    (mappingValues(data.leftThumbStickValue.y) * THUMBSTICK_UPDOWN_SCALE).toInt()
-            }
-        }
-        VirtualStickManager.getInstance().rightStick?.let {
-            // left and right
-            it.horizontalPosition = (mappingValues(data.rightThumbStickValue.x) * THUMBSTICK_CONTROL_SCALE).toInt()
-            // forward and backward
-            it.verticalPosition = (mappingValues(data.rightThumbStickValue.y) * THUMBSTICK_CONTROL_SCALE).toInt()
-        }
-    }
-
-    fun mappingValues(input: Float): Float {
-        val s = 7
-        var tmp = (exp((10 - s) * abs(input)) - 1) / (exp(10 - s.toFloat()) - 1)
-        if (input < 0)
-            tmp *= -1
-
-        return (tmp * Stick.MAX_STICK_POSITION_ABS)
-    }
-
-    override fun updateDroneSpatialPositionMonitor(monitor: IPositionMonitor?) {
-        // it does not matter, even with position monitor, it is still impossible to achieve accurate control through thumbsticks
-        this.monitor = monitor
-    }
-}
 
 class ControlViaHeadset(
     private val updateVelocityInterval: Long,
@@ -476,8 +414,7 @@ class ControlViaHeadset(
 
 fun createControlStrategy(controlMode: Int): IControlStrategy {
     return when (controlMode) {
-        0 -> ControlViaThumbSticks(MAXIMUM_HEIGHT_FOR_THUMBSTICK_CONTROL) // thumbsticks
-        1 -> ControlViaHeadset(1000L / SENDING_FREQUENCY, false)
+        0 -> ControlViaHeadset(1000L / SENDING_FREQUENCY, false)
         else -> ControlViaHeadset(1000L / SENDING_FREQUENCY) // headset
     }
 }

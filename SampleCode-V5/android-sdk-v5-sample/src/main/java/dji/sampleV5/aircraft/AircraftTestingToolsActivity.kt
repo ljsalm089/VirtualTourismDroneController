@@ -17,10 +17,10 @@ class AircraftTestingToolsActivity : TestingToolsActivity() {
 
     override fun loadPages() {
         msdkCommonOperateVm.apply {
-            val itemList = LinkedHashSet<FragmentPageItemList>().also {
-                it.add(CommonFragmentPageInfoFactory().createPageInfo())
-                it.add(AircraftFragmentPageInfoFactory().createPageInfo())
-            }
+            val itemList = linkedSetOf(
+                CommonFragmentPageInfoFactory().createPageInfo(),
+                AircraftFragmentPageInfoFactory().createPageInfo()
+            )
             loaderItem(itemList)
         }
     }

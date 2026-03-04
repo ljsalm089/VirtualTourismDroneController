@@ -16,6 +16,7 @@ import dji.sampleV5.aircraft.PING_INTERVAL
 import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
+import dji.sampleV5.aircraft.motiontracking.MotionTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
 import dji.sampleV5.aircraft.utils.toJson
@@ -169,6 +170,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     private val controllerStatusHandleScheduler = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
+    private var motionTracker: MotionTracker? = null
+
     fun initialize(application: Application) {
         this.application = application
         webRtcManager = WebRtcManager(scope = viewModelScope, application)
@@ -256,21 +259,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     }
 
     fun clickPublishBtn() {
-        tmpPermission = getRequiredPermissions()
-        if (tmpPermission.isEmpty()) {
-            startPublish()
-        } else {
-            this.requestPermissions.postValue(tmpPermission)
-        }
+        startPublish()
     }
 
-    fun onRequestPermission(permissions: List<String>) {
-        if (getRequiredPermissions().isEmpty()) {
-            startPublish()
-        } else {
-            showMessageOnLogAndScreen(Log.ERROR, "Have not enough permissions")
-        }
-    }
 
     fun startPublish() {
         webRtcManager.start()
@@ -311,11 +302,18 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         Timber.d("User click 'prepare for remote control'")
         droneController?.prepareDrone(remoteControlMode.value!!)
         remoteControlUIStatus.postValue(false)
+
+        if (null == motionTracker) {
+            motionTracker = MotionTracker(viewModelScope, Dispatchers.IO)
+        }
+        motionTracker?.startMonitor(application)
     }
 
     fun abortDroneControl() {
         droneController?.abort()
         remoteControlUIStatus.postValue(true)
+
+        motionTracker?.stopMonitor()
     }
 
     fun landOffDrone() {
@@ -521,6 +519,14 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     emitMonitorStatus(mapOf(result))
                     Timber.i("${result.first} --> ${result.second}}")
                 }
+
+                if (motionTracker?.isTracking() == true) {
+                    motionTracker?.currentPosition()?.let { pos->
+                        val keyValue = "Tracking Position: " to "x: ${pos.x.format()}, y: ${pos.y.format()}, z: ${pos.z.format()}"
+                        emitMonitorStatus(mapOf(keyValue))
+                        Timber.i("${keyValue.first} --> ${keyValue.second}}")
+                    }
+                }
             }
         }
     }
@@ -601,20 +607,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             }
         }
         return null
-    }
-
-    private fun getRequiredPermissions(): List<String> {
-        val reqPermissions = ArrayList<String>()
-        for (permission in permissions) {
-            if (PermissionChecker.checkSelfPermission(
-                    application,
-                    permission
-                ) != PERMISSION_GRANTED
-            ) {
-                reqPermissions.add(permission)
-            }
-        }
-        return reqPermissions
     }
 
     private fun changeVideoResolutionAndFrameRate() {

@@ -93,58 +93,6 @@
             android:layout_height="wrap_content"/>
     </LinearLayout>
 
-    <androidx.appcompat.widget.AppCompatSpinner
-        android:id="@+id/spinner_control_mode"
-        android:layout_width="wrap_content"
-        tools:listitem="@layout/item_monitoring_status"
-        android:layout_gravity="top|center"
-        android:popupBackground="@color/black"
-        android:layout_height="wrap_content"/>
-
-    <com.google.android.material.slider.Slider
-        android:id="@+id/thumbstick_control_scale_slider"
-        android:layout_width="@dimen/uxsdk_300_dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="@dimen/uxsdk_60_dp"
-        android:valueFrom="0.0"
-        android:valueTo="0.2"
-        android:value="0.01"
-        android:stepSize="0.01"
-        android:layout_height="wrap_content"/>
-
-    <com.google.android.material.slider.Slider
-        android:id="@+id/thumbstick_rotation_scale_slider"
-        android:layout_width="@dimen/uxsdk_300_dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="@dimen/uxsdk_90_dp"
-        android:valueFrom="0.1"
-        android:valueTo="0.8"
-        android:stepSize="0.05"
-        android:value="0.1"
-        android:layout_height="wrap_content"/>
-
-    <com.google.android.material.slider.Slider
-        android:id="@+id/thumbstick_updown_scale_slider"
-        android:layout_gravity="center_horizontal"
-        android:layout_width="@dimen/uxsdk_300_dp"
-        android:layout_height="wrap_content"
-        android:valueFrom="0.01"
-        android:valueTo="0.2"
-        android:stepSize="0.01"
-        android:value="0.1"
-        android:layout_marginTop="@dimen/uxsdk_120_dp"/>
-
-    <com.google.android.material.slider.Slider
-        android:id="@+id/position_change_velocity_scale"
-        android:layout_width="@dimen/uxsdk_300_dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="@dimen/uxsdk_90_dp"
-        android:valueFrom="0.0"
-        android:valueTo="1.0"
-        android:stepSize="0.1"
-        android:value="0.5"
-        android:layout_height="wrap_content"/>
-
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

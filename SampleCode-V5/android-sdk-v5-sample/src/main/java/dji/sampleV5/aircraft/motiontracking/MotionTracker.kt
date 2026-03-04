@@ -1,25 +1,35 @@
 package dji.sampleV5.aircraft.motiontracking
 
+import android.content.Context
 import boofcv.abst.feature.detect.interest.PointDetectorTypes
 import boofcv.abst.sfm.d3.MonocularPlaneVisualOdometry
 import boofcv.factory.sfm.ConfigPlanarTrackPnP
 import boofcv.factory.sfm.FactoryVisualOdometry
 import boofcv.factory.tracker.ConfigPointTracker
 import boofcv.io.calibration.CalibrationIO
+import boofcv.struct.calib.CameraPinholeBrown
 import boofcv.struct.calib.MonoPlaneParameters
 import boofcv.struct.image.GrayU8
 import boofcv.struct.pyramid.ConfigDiscreteLevels
+import dji.sdk.keyvalue.value.common.ComponentIndexType
+import dji.v5.manager.datacenter.MediaDataCenter
+import dji.v5.manager.interfaces.ICameraStreamManager
 import georegression.struct.point.Vector3D_F64
+import georegression.struct.se.Se3_F64
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import okhttp3.internal.closeQuietly
+import timber.log.Timber
 import java.io.File
+import java.io.InputStreamReader
 import java.nio.ByteBuffer
 
 
-class MotionTracker(val scope: CoroutineScope, val dispatcher: CoroutineDispatcher) {
+class MotionTracker(val scope: CoroutineScope, val dispatcher: CoroutineDispatcher) :
+    ICameraStreamManager.CameraFrameListener {
 
     private var tmpScope: CoroutineScope? = null
     private var visualOdometry: MonocularPlaneVisualOdometry<GrayU8>? = null
@@ -29,8 +39,22 @@ class MotionTracker(val scope: CoroutineScope, val dispatcher: CoroutineDispatch
     fun startMonitor(cameraParametersFile: File) {
         tmpScope = CoroutineScope(SupervisorJob() + dispatcher)
 
-        val calibration = CalibrationIO.load<MonoPlaneParameters>(cameraParametersFile)
+        val calibration = CalibrationIO.load<CameraPinholeBrown>(cameraParametersFile)
 
+        calibrateAndStartMonitor(calibration.toMonoPlaneParameters())
+    }
+
+    private fun CameraPinholeBrown.toMonoPlaneParameters() : MonoPlaneParameters {
+        val parameters = MonoPlaneParameters()
+        parameters.intrinsic = this
+
+        parameters.planeToCamera = Se3_F64()
+        parameters.planeToCamera.T.z = 2.0
+
+        return parameters
+    }
+
+    private fun calibrateAndStartMonitor(calibration: MonoPlaneParameters?) {
         val config = ConfigPlanarTrackPnP()
 
         config.tracker.typeTracker = ConfigPointTracker.TrackerType.KLT
@@ -51,12 +75,29 @@ class MotionTracker(val scope: CoroutineScope, val dispatcher: CoroutineDispatch
 
         visualOdometry = FactoryVisualOdometry.monoPlaneInfinity(config, GrayU8::class.java)
         visualOdometry?.setCalibration(calibration)
+
+        MediaDataCenter.getInstance().cameraStreamManager.addFrameListener(
+            ComponentIndexType.LEFT_OR_MAIN,
+            ICameraStreamManager.FrameFormat.YUV420_888, this
+        )
     }
+
+    fun startMonitor(context: Context) {
+        val fs = context.assets.open("intrinsics.yaml")
+        val calibration = CalibrationIO.load<CameraPinholeBrown>(InputStreamReader(fs))
+        fs.closeQuietly()
+
+        calibrateAndStartMonitor(calibration.toMonoPlaneParameters())
+    }
+
+    fun isTracking() = null != tmpScope
 
     fun stopMonitor() {
         tmpScope?.cancel()
         tmpScope = null
         relatedPosition.zero()
+
+        MediaDataCenter.getInstance().cameraStreamManager.removeFrameListener(this)
     }
 
     fun downscaleYPlane(
@@ -105,6 +146,7 @@ class MotionTracker(val scope: CoroutineScope, val dispatcher: CoroutineDispatch
                 val grayU8 = downscaleYPlane(frameData, width, height, 1920, 1080)
 
                 if (!odometry.process(grayU8)) {
+                    Timber.e("Fail to process the video frame, try to store the old position and reset the visual odometry")
                     // TODO need to store the previous position and reset the visual odometry
                     relatedPosition.plusIP(odometry.cameraToWorld.T)
 
@@ -116,5 +158,16 @@ class MotionTracker(val scope: CoroutineScope, val dispatcher: CoroutineDispatch
 
     fun currentPosition(): Vector3D_F64 {
         return relatedPosition.copy().plus(visualOdometry?.cameraToWorld?.T ?: Vector3D_F64())
+    }
+
+    override fun onFrame(
+        frameData: ByteArray,
+        offset: Int,
+        length: Int,
+        width: Int,
+        height: Int,
+        format: ICameraStreamManager.FrameFormat
+    ) {
+        processVideoFrame(frameData, offset, length, width, height)
     }
 }
