@@ -4,8 +4,6 @@ import android.Manifest
 import android.app.Application
 import android.util.ArrayMap
 import android.util.Log
-import androidx.core.content.PermissionChecker
-import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -114,9 +112,6 @@ data class ControlStatusData(
     var currentPosition: Vector3D,
     var currentRotation: Vector3D,
 
-    var leftThumbStickValue: Vector2D,
-    var rightThumbStickValue: Vector2D,
-
     var sampleTimestamp: Long,
     var benchmarkSampleTimestamp: Long
 ) {
@@ -136,13 +131,11 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     val message = MutableSharedFlow<Pair<Int, String>>(extraBufferCapacity = Int.MAX_VALUE)
 
-    val getReadyStatus = MutableLiveData<Boolean>()
     val publishBtnStatus = MutableLiveData<Boolean>()
-    val stopBtnStatus = MutableLiveData<Boolean>()
-    val abortBtnStatus = MutableLiveData<Boolean>()
+    val stopPublishingBtnStatus = MutableLiveData<Boolean>()
 
-    val remoteControlMode = MutableLiveData<Int>()
-    val remoteControlUIStatus = MutableLiveData<Boolean>()
+    val startControlBtnStatus = MutableLiveData<Boolean>()
+    val abortControlBtnStatus = MutableLiveData<Boolean>()
 
     val monitoringStatus =
         MutableSharedFlow<Map<String, String>>(extraBufferCapacity = Int.MAX_VALUE)
@@ -177,12 +170,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         webRtcManager = WebRtcManager(scope = viewModelScope, application)
         eventDisposable = webRtcManager.webRtcEventObservable.subscribe(this)
 
-        getReadyStatus.value = false
-        stopBtnStatus.value = false
+        startControlBtnStatus.value = false
+        stopPublishingBtnStatus.value = false
         publishBtnStatus.value = true
-        abortBtnStatus.value = true
-        remoteControlMode.value = 0
-        remoteControlUIStatus.value = true
+        abortControlBtnStatus.value = true
 
         initializeEventHandles()
 
@@ -196,8 +187,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     Timber.d("If the drone is ready: ${controller.isDroneReady()}")
                     isDroneReady = controller.isDroneReady()
 
-                    abortBtnStatus.postValue(isDroneReady)
-                    getReadyStatus.postValue(!isDroneReady)
+                    abortControlBtnStatus.postValue(isDroneReady)
+                    startControlBtnStatus.postValue(!isDroneReady)
                 }
                 emitMonitorStatus(
                     mapOf(
@@ -267,9 +258,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         webRtcManager.start()
 
         publishBtnStatus.postValue(false)
-        getReadyStatus.postValue(true)
-        abortBtnStatus.postValue(false)
-        stopBtnStatus.postValue(true)
+        stopPublishingBtnStatus.postValue(true)
+
+        startControlBtnStatus.postValue(true)
+        abortControlBtnStatus.postValue(false)
     }
 
     fun stopPublish() {
@@ -284,10 +276,11 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         videoCapturer = null
         videoSource = null
 
-        getReadyStatus.postValue(false)
         publishBtnStatus.postValue(true)
-        abortBtnStatus.postValue(false)
-        stopBtnStatus.postValue(false)
+        stopPublishingBtnStatus.postValue(false)
+
+        startControlBtnStatus.postValue(false)
+        abortControlBtnStatus.postValue(false)
 
         showMessageOnLogAndScreen(Log.INFO, "Stop publishing video.")
     }
@@ -300,8 +293,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
         // direct the drone to fly to an initial position
         Timber.d("User click 'prepare for remote control'")
-        droneController?.prepareDrone(remoteControlMode.value!!)
-        remoteControlUIStatus.postValue(false)
+        droneController?.prepareDrone(0)
+        startControlBtnStatus.postValue(false)
+        abortControlBtnStatus.postValue(true)
 
         if (null == motionTracker) {
             motionTracker = MotionTracker(viewModelScope, Dispatchers.IO)
@@ -311,7 +305,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     fun abortDroneControl() {
         droneController?.abort()
-        remoteControlUIStatus.postValue(true)
+
+        startControlBtnStatus.postValue(true)
+        abortControlBtnStatus.postValue(false)
 
         motionTracker?.stopMonitor()
     }

@@ -235,6 +235,9 @@ class DroneStatusMonitor(
                     locationString
                 }
             }
+        // TODO showing current location and distance to the initial position does not work with indoor environment,
+        // therefore, just neglect it
+        droneStatusHandle.remove(FlightControllerKey.KeyAircraftLocation3D)
 
         // monitor drone attitude
         droneStatusHandle[FlightControllerKey.KeyAircraftAttitude] =
@@ -286,11 +289,18 @@ class DroneStatusMonitor(
             R.string.hint_wind_direction.idToString() to {
                 (it as? WindDirection)?.name ?: "N/A"
             }
+
+        // TODO within indoor environment, ignore the factor of the wind
+        droneStatusHandle.remove(FlightControllerKey.KeyWindWarning)
+        droneStatusHandle.remove(FlightControllerKey.KeyWindDirection)
+        droneStatusHandle.remove(FlightControllerKey.KeyWindSpeed)
+
         // ultrasonic height
         droneStatusHandle[FlightControllerKey.KeyUltrasonicHeight] =
             R.string.hint_ultrasonic_height.idToString() to {
                 it?.toString() ?: "N/A"
             }
+
         // air connection quality
         droneStatusHandle[AirLinkKey.KeySignalQuality] =
             R.string.hint_connection_signal.idToString() to {
@@ -301,6 +311,7 @@ class DroneStatusMonitor(
                     else -> "N/A"
                 }
             }
+
         droneStatusHandle[AirLinkKey.KeyDynamicDataRate] =
             R.string.hint_connection_capability.idToString() to {
                 (it as? Float)?.format() ?: "N/A"

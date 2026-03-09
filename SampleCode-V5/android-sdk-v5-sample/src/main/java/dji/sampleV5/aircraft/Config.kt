@@ -32,7 +32,7 @@ const val TEST_VIRTUAL_STICK_ADVANCED_PARAM = true
 
 
 // monitor the velocity changes actively or passively
-const val MONITOR_VELOCITY_AND_ORIENTATION_ACTIVELY = true
+const val MONITOR_VELOCITY_AND_ORIENTATION_ACTIVELY = false
 
 // the maximum height the drone can reach while controlling via the thumb sticks
 const val MAXIMUM_HEIGHT_FOR_THUMBSTICK_CONTROL = 2.0

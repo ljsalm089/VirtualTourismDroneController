@@ -2,7 +2,6 @@ package dji.sampleV5.aircraft.virtualcontroller
 
 import android.os.SystemClock
 import dji.sampleV5.aircraft.HEADSET_MOVEMENT_SCALE
-import dji.sampleV5.aircraft.SENDING_FREQUENCY
 import dji.sampleV5.aircraft.VELOCITY_THRESHOLD_OF_WARNING_AND_IGNORE
 import dji.sampleV5.aircraft.models.ControlStatusData
 import dji.sampleV5.aircraft.models.Vector3D
@@ -199,7 +198,7 @@ class ControlViaHeadset(
             if (lastValidSampleTime >= data.sampleTimestamp) return
 
             // there is a maximum frequency limitation regarding sending data to the drone through the virtual stick advanced parameters
-            // but the frequency of sampling data in headset is bigger then this valid, so we need to combine multi frames of data into one drone command
+            // but the frequency of sampling data in headset is bigger than this valid, so we need to combine multi frames of data into one drone command
             val currentLocalTimestamp = SystemClock.elapsedRealtime()
             if (lastValidSampleTime > 0L && currentLocalTimestamp - this.lastSendCmdTimestamp <= updateVelocityInterval) {
                 return
@@ -409,12 +408,4 @@ class ControlViaHeadset(
         this.positionMonitor = monitor
     }
 
-}
-
-
-fun createControlStrategy(controlMode: Int): IControlStrategy {
-    return when (controlMode) {
-        0 -> ControlViaHeadset(1000L / SENDING_FREQUENCY, false)
-        else -> ControlViaHeadset(1000L / SENDING_FREQUENCY) // headset
-    }
 }

@@ -13,14 +13,11 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.MarginLayoutParams
-import android.widget.AdapterView
-import android.widget.BaseAdapter
 import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.setPadding
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -223,16 +220,16 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             )
         }
 
-        viewModel.stopBtnStatus.observe(this) {
+        viewModel.stopPublishingBtnStatus.observe(this) {
             binding.btnStopPublishing.updateTextColor(it)
         }
         viewModel.publishBtnStatus.observe(this) {
             binding.btnStartPublishing.updateTextColor(it)
         }
-        viewModel.getReadyStatus.observe(this) {
+        viewModel.startControlBtnStatus.observe(this) {
             binding.btnGetReadyToControl.updateTextColor(it)
         }
-        viewModel.abortBtnStatus.observe(this) {
+        viewModel.abortControlBtnStatus.observe(this) {
             binding.btnAbortRemoteControl.updateTextColor(it)
         }
         viewModel.requestPermissions.observe(this) {

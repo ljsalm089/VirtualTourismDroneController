@@ -3,6 +3,7 @@ package dji.sampleV5.aircraft.virtualcontroller
 import android.util.Log
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
 import dji.sampleV5.aircraft.models.ControlStatusData
+import dji.sampleV5.aircraft.utils.LogLevel
 import dji.sampleV5.aircraft.utils.toJson
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.KeyTools
@@ -25,6 +26,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.UUID
 import kotlin.math.abs
 
 
@@ -105,6 +107,8 @@ class MockDroneController(
     statusUpdater: StatusUpdater?,
 ) : BaseDroneController(scope, observable, controlStatusFeedback, messageNotifier, statusUpdater) {
 
+    private val SESSION_ID = UUID.randomUUID().toString()
+
     override fun getInitialLocation(): LocationCoordinate3D? {
         return null
     }
@@ -138,7 +142,12 @@ class MockDroneController(
     }
 
     override fun onControllerStatusData(data: ControlStatusData) {
-        Timber.d("Received status changes from remote controller: ${data.toJson()}")
+        val dataString = data.toJson()
+        Timber.d("Received status changes from remote controller: $dataString")
+
+        // TODO log the target position data into file for future analysis
+        Timber.d("Log the target position data into file for future analysis")
+        Timber.log(LogLevel.VERBOSE_HEADSET_POSITION_CHANGES, "$SESSION_ID ---> $dataString")
     }
 
     override fun destroy() {
@@ -326,7 +335,7 @@ class VirtualDroneController(
     }
 
     override fun prepareDrone(controlMode: Int) {
-        controlStrategy = createControlStrategy(controlMode)
+        controlStrategy = ControlViaHeadset(1000L / SENDING_FREQUENCY, true)
 
         if (!this.isDroneReady() && null == prepareJob) {
             KeyTools.createKey(FlightControllerKey.KeyIsFlying).get({ flying ->

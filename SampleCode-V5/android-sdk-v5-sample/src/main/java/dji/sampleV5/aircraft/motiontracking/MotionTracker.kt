@@ -18,6 +18,7 @@ import georegression.struct.point.Vector3D_F64
 import georegression.struct.se.Se3_F64
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -38,10 +39,12 @@ class MotionTracker(val scope: CoroutineScope, val dispatcher: CoroutineDispatch
 
     fun startMonitor(cameraParametersFile: File) {
         tmpScope = CoroutineScope(SupervisorJob() + dispatcher)
+        tmpScope?.launch(dispatcher) {
+            val calibration = CalibrationIO.load<CameraPinholeBrown>(cameraParametersFile)
 
-        val calibration = CalibrationIO.load<CameraPinholeBrown>(cameraParametersFile)
+            calibrateAndStartMonitor(calibration.toMonoPlaneParameters())
+        }
 
-        calibrateAndStartMonitor(calibration.toMonoPlaneParameters())
     }
 
     private fun CameraPinholeBrown.toMonoPlaneParameters() : MonoPlaneParameters {
@@ -83,11 +86,14 @@ class MotionTracker(val scope: CoroutineScope, val dispatcher: CoroutineDispatch
     }
 
     fun startMonitor(context: Context) {
-        val fs = context.assets.open("intrinsics.yaml")
-        val calibration = CalibrationIO.load<CameraPinholeBrown>(InputStreamReader(fs))
-        fs.closeQuietly()
+        tmpScope = CoroutineScope(SupervisorJob() + dispatcher)
+        tmpScope?.launch(dispatcher) {
+            val fs = context.assets.open("intrinsics.yaml")
+            val calibration = CalibrationIO.load<CameraPinholeBrown>(InputStreamReader(fs))
+            fs.closeQuietly()
 
-        calibrateAndStartMonitor(calibration.toMonoPlaneParameters())
+            calibrateAndStartMonitor(calibration.toMonoPlaneParameters())
+        }
     }
 
     fun isTracking() = null != tmpScope
