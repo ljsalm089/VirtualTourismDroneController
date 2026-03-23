@@ -152,7 +152,7 @@ class MSDKInfoVm : DJIViewModel() {
                 }
             })
         } else {
-            val setting = InitializationSettings(LocationCoordinate2D(latitude, longitude), 10)
+            val setting = InitializationSettings.createInstance(LocationCoordinate2D(latitude, longitude), 10)
             SimulatorManager.getInstance().enableSimulator(setting, object : CommonCallbacks.CompletionCallback {
                 override fun onSuccess() {
                     Timber.i("Enable simulator mode successfully")

@@ -419,7 +419,7 @@ class GPSMeasurementVM : ViewModel(), SimulatorStatusListener {
         if (!simulationStatus.value!!) {
             val initializedLocation =
                 LocationCoordinate2D(mapLocation.value!!.latitude, mapLocation.value!!.longitude)
-            val settings = InitializationSettings(initializedLocation, 10)
+            val settings = InitializationSettings.createInstance(initializedLocation, 10)
             SimulatorManager.getInstance()
                 .enableSimulator(settings, object : CommonCallbacks.CompletionCallback {
                     override fun onSuccess() {
