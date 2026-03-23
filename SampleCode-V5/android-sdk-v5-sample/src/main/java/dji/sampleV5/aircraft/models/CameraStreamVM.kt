@@ -40,9 +40,11 @@ import dji.sampleV5.aircraft.webrtc.WebRtcEvent
 import dji.sampleV5.aircraft.webrtc.WebRtcManager
 import dji.sdk.keyvalue.key.CameraKey
 import dji.sdk.keyvalue.key.KeyTools
+import dji.sdk.keyvalue.value.camera.CameraFocusMode
 import dji.sdk.keyvalue.value.camera.VideoFrameRate
 import dji.sdk.keyvalue.value.camera.VideoResolution
 import dji.sdk.keyvalue.value.camera.VideoResolutionFrameRate
+import dji.v5.et.get
 import dji.v5.et.set
 import dji.v5.manager.aircraft.simulator.SimulatorManager
 import dji.v5.manager.aircraft.simulator.SimulatorState
@@ -246,7 +248,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 }
             emitMonitorStatus(mapOf(result))
         }
-        changeVideoResolutionAndFrameRate()
+        initializeDroneParameters()
     }
 
     fun clickPublishBtn() {
@@ -605,17 +607,36 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         return null
     }
 
-    private fun changeVideoResolutionAndFrameRate() {
+    private fun initializeDroneParameters() {
+        // INFO change the resolution and frame rate of the video, seems like it won't affect the video for streaming
         val config = VideoResolutionFrameRate(
-            VideoResolution.RESOLUTION_2688x1512,
-            VideoFrameRate.RATE_60FPS)
+            VideoResolution.RESOLUTION_1080X1920P,
+            VideoFrameRate.RATE_PRECISE_30FPS)
         KeyTools.createKey(CameraKey.KeyVideoResolutionFrameRate).set(config, {
-            showMessageOnLogAndScreen(Log.INFO, "Change video resolution to 2688*1512 and frame rate to 60")
-            videoResolution = 2688 to 1512
-            videoFrameRate = 60
+            showMessageOnLogAndScreen(Log.INFO, "Change video resolution to 1080x1920 and frame rate to 30")
+            videoResolution = 1080 to 1920
+            videoFrameRate = 30
         }, { error ->
             showMessageOnLogAndScreen(Log.ERROR, "Fail to change the video resolution and frame rate ${error.errorCode()}: ${error.hint()}")
-        });
+        })
+
+        // TODO change the camera focus length and test if it will affect the streaming video
+        KeyTools.createKey(CameraKey.KeyCameraFocusMode).set(CameraFocusMode.MANUAL, {
+            showMessageOnLogAndScreen(Log.INFO, "Change camera focus mode to manual")
+        }, {
+            showMessageOnLogAndScreen(Log.ERROR, "Fail to change the camera focus mode to manual")
+        })
+
+        // TODO set the camera focus ring value
+        KeyTools.createKey(CameraKey.KeyCameraFocusRingMaxValue).get({
+            KeyTools.createKey(CameraKey.KeyCameraFocusRingValue).set(it, {
+                showMessageOnLogAndScreen(Log.INFO, "Set the maximum camera focus ring value to $it")
+            }, {
+                showMessageOnLogAndScreen(Log.ERROR, "Fail to set the maximum camera focus ring value")
+            })
+        }, {
+            showMessageOnLogAndScreen(Log.ERROR, "Fail to get the maximum camera focus ring value")
+        })
     }
 
     private fun controlStatusFeedback(status: String, data: String) {
