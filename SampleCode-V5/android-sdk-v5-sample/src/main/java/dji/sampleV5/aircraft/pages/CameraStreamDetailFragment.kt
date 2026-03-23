@@ -137,10 +137,6 @@ class CameraStreamDetailFragment : DJIFragment() {
 
         initViewModel()
 
-        btnStopDownloadStream.setOnClickListener {
-            viewModel.stopDownloadStreamToLocal()
-        }
-
         btnSetStreamEncodeBitrate.setOnClickListener {
             KeyValueDialogUtil.showInputDialog(
                 activity, "Stream Encode Bitrate(bps)",
@@ -171,9 +167,8 @@ class CameraStreamDetailFragment : DJIFragment() {
             }
         }
 
-        onOpenOrCloseCheckListener.onClick(btnCloseOrOpen)
 
-        if (cameraIndex == ComponentIndexType.VISION_ASSIST) {
+        if (cameraIndex == ComponentIndexType.VISION_ASSIST || cameraIndex == ComponentIndexType.FPV) {
             mAssistViewDirectionLayout.visibility = View.VISIBLE
             btnCloseOrOpenVisionAssist.visibility = View.VISIBLE
         } else {
@@ -239,7 +234,7 @@ class CameraStreamDetailFragment : DJIFragment() {
         }
 
         viewModel.visionAssistViewDirectionRange.observe(viewLifecycleOwner) { availableDirectionList ->
-            if (cameraIndex != ComponentIndexType.VISION_ASSIST) {
+            if (cameraIndex != ComponentIndexType.VISION_ASSIST && cameraIndex != ComponentIndexType.FPV) {
                 return@observe
             }
             for (i in 0 until mAssistViewDirectionLayout.childCount) {
@@ -303,7 +298,7 @@ class CameraStreamDetailFragment : DJIFragment() {
     private fun downloadYUVImage() {
         val selectedIndex = arrayOf(-1)
         val formatList = SUPPORT_YUV_FORMAT.keys.toTypedArray()
-        AlertDialog.Builder(requireContext(), R.style.Base_ThemeOverlay_AppCompat_Dialog_Alert)
+        AlertDialog.Builder(requireContext(), androidx.appcompat.R.style.Base_ThemeOverlay_AppCompat_Dialog_Alert)
             .setIcon(android.R.drawable.ic_input_get)
             .setTitle(R.string.title_select_yuv_format)
             .setCancelable(true)
