@@ -14,7 +14,6 @@ import dji.sampleV5.aircraft.PING_INTERVAL
 import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
-import dji.sampleV5.aircraft.motiontracking.MotionTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
 import dji.sampleV5.aircraft.utils.toJson
@@ -165,8 +164,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     private val controllerStatusHandleScheduler = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
-    private var motionTracker: MotionTracker? = null
-
     fun initialize(application: Application) {
         this.application = application
         webRtcManager = WebRtcManager(scope = viewModelScope, application)
@@ -298,11 +295,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         droneController?.prepareDrone(0)
         startControlBtnStatus.postValue(false)
         abortControlBtnStatus.postValue(true)
-
-        if (null == motionTracker) {
-            motionTracker = MotionTracker(viewModelScope, Dispatchers.IO)
-        }
-        motionTracker?.startMonitor(application)
     }
 
     fun abortDroneControl() {
@@ -310,8 +302,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
         startControlBtnStatus.postValue(true)
         abortControlBtnStatus.postValue(false)
-
-        motionTracker?.stopMonitor()
     }
 
     fun landOffDrone() {
@@ -516,14 +506,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                         R.string.hint_fetch_video.idToString() to it.fetchFrameRate().toString()
                     emitMonitorStatus(mapOf(result))
                     Timber.i("${result.first} --> ${result.second}}")
-                }
-
-                if (motionTracker?.isTracking() == true) {
-                    motionTracker?.currentPosition()?.let { pos->
-                        val keyValue = "Tracking Position: " to "x: ${pos.x.format()}, y: ${pos.y.format()}, z: ${pos.z.format()}"
-                        emitMonitorStatus(mapOf(keyValue))
-                        Timber.i("${keyValue.first} --> ${keyValue.second}}")
-                    }
                 }
             }
         }
