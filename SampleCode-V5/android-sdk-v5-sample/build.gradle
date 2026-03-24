@@ -156,6 +156,9 @@ dependencies {
 
     implementation deps.opencsv
 
+    // include the stella vslam
+    implementation project(':stella')
+
     implementation deps.timber
 
     implementation deps.playservicesmaps

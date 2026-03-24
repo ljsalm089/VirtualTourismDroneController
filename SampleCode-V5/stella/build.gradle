@@ -1,0 +1,92 @@
+apply plugin: "com.android.library"
+apply plugin: "org.jetbrains.kotlin.android"
+
+var openCVSdkPath = projectDir.absolutePath + "/sdk/native/jni"
+
+
+android {
+    namespace = "org.jason.testapp.android.stella"
+    compileSdk = Integer.parseInt(project.ANDROID_COMPILE_SDK_VERSION)
+
+    defaultConfig {
+        minSdk = Integer.parseInt(project.ANDROID_MIN_SDK_VERSION)
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        externalNativeBuild {
+            cmake {
+                abiFilters += "arm64-v8a"
+                arguments "-DANDROID_STL=c++_shared",
+                        "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+                        "-DOpenCV_DIR=${openCVSdkPath}",
+                        "-DANDROID_ARM_NEON=TRUE",
+                        "-DG2O_USE_CHOLMOD=OFF",
+                        "-DEIGEN_TEST_CXX11=ON",
+                        "-DBUILD_TESTING=OFF",
+                        "--log-level=VERBOSE"
+                cppFlags "-O3", "-DNDEBUG"
+                cFlags "-O3", "-DNDEBUG"
+            }
+        }
+
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    buildTypes {
+        debug {
+            packaging {
+                jniLibs {
+                    keepDebugSymbols.add("**/*.so")
+                    pickFirsts += "**/*.so"
+                }
+            }
+        }
+        release {
+            proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro"
+            )
+            packaging {
+                jniLibs {
+                    keepDebugSymbols.add("**/*.so")
+                    pickFirsts += "**/*.so"
+                }
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+
+    buildFeatures {
+        aidl = true
+        viewBinding = true
+    }
+}
+
+dependencies {
+    implementation deps.kotlin
+    implementation deps.appcompat
+    implementation deps.constraintLayout
+    implementation deps.lifecycleRuntime_ktx
+    implementation deps.lifecycleViewModel
+    implementation deps.lifecycleViewModel_ktx
+    implementation deps.lifecycleLiveData
+    implementation deps.ktxCore
+    implementation deps.coroutines_core
+    implementation deps.coroutines_android
+    implementation deps.timber
+}

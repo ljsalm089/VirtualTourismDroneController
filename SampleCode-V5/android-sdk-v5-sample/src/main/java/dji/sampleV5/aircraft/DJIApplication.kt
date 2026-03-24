@@ -8,6 +8,10 @@ import dji.sampleV5.aircraft.log.FileLoggingTree
 import dji.sampleV5.aircraft.models.MSDKManagerVM
 import dji.sampleV5.aircraft.models.globalViewModels
 import dji.sampleV5.aircraft.utils.LogLevel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.supervisorScope
+import org.jason.testapp.android.stella.StellaNative
 import timber.log.Timber
 import java.io.File
 import java.text.SimpleDateFormat
@@ -26,6 +30,9 @@ open class DJIApplication : Application() {
 
     private val msdkManagerVM: MSDKManagerVM by globalViewModels()
 
+    private lateinit var nativeHelper: StellaNative
+
+
     private val logConfig = listOf(
         MINIMUM_LOG_LEVEL to null,
         LogLevel.VERBOSE_DRONE_VELOCITY_READ_ACTIVELY to "velocity_changes_",
@@ -40,6 +47,9 @@ open class DJIApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         context = this
+
+        nativeHelper = StellaNative()
+        nativeHelper.initialize()
 
         // Ensure initialization is called first
         msdkManagerVM.initMobileSDK(this)
@@ -87,6 +97,8 @@ open class DJIApplication : Application() {
             (tree as? FileLoggingTree)?.destroy()
         }
         logTrees.clear()
+
+        nativeHelper.destroy()
     }
 
     override fun onTerminate() {
@@ -95,6 +107,8 @@ open class DJIApplication : Application() {
     }
 
     companion object {
+
+        val applicationScope = CoroutineScope(SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
         private lateinit var logFile: File
 
