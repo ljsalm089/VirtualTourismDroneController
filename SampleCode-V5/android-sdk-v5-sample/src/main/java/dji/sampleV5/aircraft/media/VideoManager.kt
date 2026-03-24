@@ -63,11 +63,7 @@ class VideoManager private constructor(val scope: CoroutineScope, dispatcher: Co
             for (listener in subscribers) {
                 listener.onVideoFrame(frame)
             }
-
-            launch() {
-                delay(10)
-                frame.release()
-            }
+            frame.release()
         }
     }
 

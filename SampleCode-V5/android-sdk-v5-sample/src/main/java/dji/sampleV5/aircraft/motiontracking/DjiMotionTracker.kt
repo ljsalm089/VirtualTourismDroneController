@@ -1,14 +1,28 @@
 package dji.sampleV5.aircraft.motiontracking
 
-import dji.sdk.keyvalue.value.common.ComponentIndexType
-import dji.v5.manager.datacenter.MediaDataCenter
-import dji.v5.manager.interfaces.ICameraStreamManager
+import dji.sampleV5.aircraft.media.VideoFrame
+import dji.sampleV5.aircraft.media.VideoFrameListener
+import dji.sampleV5.aircraft.media.VideoManager
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.jason.testapp.android.stella.tracker.VSLamTracker
+import org.opencv.core.CvType
+import org.opencv.core.Mat
 import org.opencv.core.Size
+import org.opencv.imgproc.Imgproc
 
-class DjiMotionTracker(val targetSize: Size, val ioDispatcher: CoroutineDispatcher) :
-    VSLamTracker<ByteArray, Unit>(), ICameraStreamManager.CameraFrameListener {
+class DjiMotionTracker(
+    val targetSize: Size,
+    ioDispatcher: CoroutineDispatcher,
+    val scope: CoroutineScope
+) :
+    VSLamTracker<VideoFrame, Unit>(), VideoFrameListener {
+
+    private val dispatcher = ioDispatcher.limitedParallelism(1, "motion tracking dispatcher")
+
+    private var processFrame: Mat =
+        Mat(targetSize.height.toInt(), targetSize.width.toInt(), CvType.CV_8UC1)
 
     override fun initialize(
         configFilePath: String,
@@ -19,28 +33,33 @@ class DjiMotionTracker(val targetSize: Size, val ioDispatcher: CoroutineDispatch
 
     override fun startup() {
         super.startup()
-        MediaDataCenter.getInstance().cameraStreamManager.addFrameListener(ComponentIndexType.LEFT_OR_MAIN,
-            ICameraStreamManager.FrameFormat.YUV420_888, this)
+
+        VideoManager.instance.subscribe(this)
     }
 
     override fun shutdown() {
         super.shutdown()
 
-        MediaDataCenter.getInstance().cameraStreamManager.removeFrameListener(this)
+        VideoManager.instance.unsubscribe(this)
     }
 
-    override fun feedFrame(frame: ByteArray) {
+    override fun feedFrame(frame: VideoFrame) {
+        frame.reference()
 
+        scope.launch(dispatcher) {
+            val grayBuffer = frame.buffer.slice(0, frame.width * frame.height)
+            val tmpMat = Mat(frame.height, frame.width, CvType.CV_8UC1, grayBuffer)
+
+            Imgproc.resize(tmpMat, processFrame, targetSize)
+
+            processFrame(processFrame)
+
+            frame.release()
+        }
     }
 
-    override fun onFrame(
-        frameData: ByteArray,
-        offset: Int,
-        length: Int,
-        width: Int,
-        height: Int,
-        format: ICameraStreamManager.FrameFormat
-    ) {
+    override fun onVideoFrame(frame: VideoFrame) {
+        feedFrame(frame)
     }
 
 }

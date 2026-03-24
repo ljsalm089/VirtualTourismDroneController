@@ -21,26 +21,27 @@ class DJIVideoCapturer(private val scope: CoroutineScope) : VideoCapturer {
     private val queue = LinkedList<Long>()
 
     private val frameListener = VideoFrameListener { frame ->
+        frame.reference()
         //            // the calling thread of this method in unknown, need to be careful
-            currentVideoTimeInNanoSeconds = SystemClock.elapsedRealtimeNanos() - startCaptureTimeNS
+        currentVideoTimeInNanoSeconds = SystemClock.elapsedRealtimeNanos() - startCaptureTimeNS
 
-            // feed the video data to webRtc
-            val timestamp = SystemClock.elapsedRealtime()
-            queue.addFirst(timestamp)
-            pushVideoToServer(frame, currentVideoTimeInNanoSeconds)
+        // feed the video data to webRtc
+        val timestamp = SystemClock.elapsedRealtime()
+        queue.addFirst(timestamp)
+        pushVideoToServer(frame, currentVideoTimeInNanoSeconds)
 
-            var gap: Long = timestamp
-            do {
-                var last = try {
-                    queue.last
-                } catch (_: NoSuchElementException) {
-                    timestamp
-                }
-                gap = abs(last - timestamp)
-                if (gap >= 1000L) {
-                    queue.removeLast()
-                }
-            } while (gap >= 1000L)
+        var gap: Long = timestamp
+        do {
+            var last = try {
+                queue.last
+            } catch (_: NoSuchElementException) {
+                timestamp
+            }
+            gap = abs(last - timestamp)
+            if (gap >= 1000L) {
+                queue.removeLast()
+            }
+        } while (gap >= 1000L)
     }
 
     private var isCapturing = false
@@ -103,7 +104,10 @@ class DJIVideoCapturer(private val scope: CoroutineScope) : VideoCapturer {
         if (isDisposed) throw RuntimeException("The capturer is disposed.")
     }
 
-    private fun pushVideoToServer(frame: dji.sampleV5.aircraft.media.VideoFrame, videoTimeStampInNanoSeconds: Long) {
+    private fun pushVideoToServer(
+        frame: dji.sampleV5.aircraft.media.VideoFrame,
+        videoTimeStampInNanoSeconds: Long
+    ) {
         scope.launch(Dispatchers.IO) {
             if (isDisposed || !isCapturing) {
                 return@launch

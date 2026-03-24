@@ -246,6 +246,9 @@ class DroneStatusMonitor(
                     "%.2f / %.2f / %.2f".format(attitude.yaw, attitude.roll, attitude.pitch)
                 } ?: "N/A"
             }
+        // TODO stop using the rotation provide by the dji sdk, use the one provided by the self defined motion tracker instead.
+        // therefore, neglect it
+        droneStatusHandle.remove(FlightControllerKey.KeyAircraftAttitude)
 
         // monitor done velocity
         droneStatusHandle[FlightControllerKey.KeyAircraftVelocity] =

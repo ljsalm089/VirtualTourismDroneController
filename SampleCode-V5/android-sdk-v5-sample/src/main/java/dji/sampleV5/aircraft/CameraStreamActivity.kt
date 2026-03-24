@@ -72,9 +72,9 @@ class StatusAdapter(val context: Context) : RecyclerView.Adapter<BaseViewHolder>
         statusList.addAll(
             listOf(
                 R.string.hint_empty.idToString() to "",
-                R.string.hint_drone_initial_position.idToString() to "-/-/-",
                 R.string.hint_drone_current_position.idToString() to "-/-/-",
-                R.string.hint_drone_distance_to_ip.idToString() to "-/-",
+                R.string.hint_drone_attitude.idToString() to "-/-/-",
+                R.string.hint_drone_tracking_state.idToString() to "-",
                 R.string.hint_empty.idToString() to "",
             )
         )

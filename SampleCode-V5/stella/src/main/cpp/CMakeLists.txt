@@ -138,6 +138,8 @@ target_include_directories(native-lib PUBLIC
     ${CMAKE_SOURCE_DIR}/stella_vslam/src
 )
 
+message("the value of opencv libraries: ${OpenCV_LIBRARIES}")
+
 target_link_libraries(native-lib PUBLIC
     native_trace
     stella_vslam

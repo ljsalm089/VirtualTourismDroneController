@@ -513,6 +513,7 @@ More refer to the release notes." </string>
     <string name="hint_drone_distance_to_ip">Distance to IP(m)</string>
     <string name="hint_drone_attitude">Drone Attitude (Y/R/P)</string>
     <string name="hint_drone_velocity">Drone Velocity (N/E/D)</string>
+    <string name="hint_drone_tracking_state">Drone Tracking State</string>
     <string name="hint_battery_temperature" tools:ignore="TypographyOther">Battery Temp.(C)</string>
     <string name="hint_battery_capacity">Battery Capacity</string>
     <string name="hint_wind_warning">Wind Warning</string>

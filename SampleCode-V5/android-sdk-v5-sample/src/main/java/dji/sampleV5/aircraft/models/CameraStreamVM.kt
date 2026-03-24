@@ -14,6 +14,7 @@ import dji.sampleV5.aircraft.PING_INTERVAL
 import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
+import dji.sampleV5.aircraft.motiontracking.DjiMotionTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
 import dji.sampleV5.aircraft.utils.toJson
@@ -57,6 +58,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.internal.closeQuietly
+import org.opencv.core.Size
 import org.webrtc.AudioSource
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
@@ -67,6 +69,9 @@ import org.webrtc.VideoCapturer
 import org.webrtc.VideoSource
 import org.webrtc.VideoTrack
 import timber.log.Timber
+import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.concurrent.Executors
 
 
@@ -156,6 +161,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     private var statusMonitor: DroneStatusMonitor? = null
 
+    private var motionTracker: DjiMotionTracker? = null
+
     private var droneController: IDroneController? = null
 
     private var videoResolution = 1920 to 1080
@@ -213,6 +220,24 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     emitMonitorStatus(mapOf(R.string.hint_drone_initial_position.idToString() to "N/A"))
                 }
             }
+
+            motionTracker?.let { tracker ->
+                val position = tracker.getCurrentPosition()
+                val rotation = tracker.getCurrentRotation()
+                val state = tracker.getTrackingState().toString()
+
+                emitMonitorStatus(mapOf(
+                    R.string.hint_drone_current_position.idToString() to "${position[0].format()} / ${position[1].format()} / ${position[2].format()}",
+                    R.string.hint_drone_attitude.idToString() to "${rotation[0].format()} / ${rotation[1].format()} / ${rotation[2].format()}",
+                    R.string.hint_drone_tracking_state.idToString() to state
+                ))
+            } ?: run {
+                emitMonitorStatus(mapOf(
+                    R.string.hint_drone_current_position.idToString() to "-/-/-",
+                    R.string.hint_drone_attitude.idToString() to "-/-/-",
+                    R.string.hint_drone_tracking_state.idToString() to "-"
+                ))
+            }
         }
         statusMonitor?.startMonitoring()
         droneController = if (USE_MOCK_CONTROL)
@@ -256,6 +281,26 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     fun startPublish() {
         webRtcManager.start()
 
+        if (null == motionTracker) {
+            // TODO initialize the tracker first
+            motionTracker = DjiMotionTracker(Size(640.0, 360.0), Dispatchers.IO, viewModelScope)
+
+            val configFile: File = File(application.filesDir, "pixel_6_mono.yaml")
+            if (!configFile.exists()) {
+                copyFileFromRaw("pixel_6_mono.yaml", configFile.absolutePath)
+            }
+
+            val vocabFile = File(application.filesDir, "orb_vocab.fbow")
+            if (!vocabFile.exists()) {
+                copyFileFromRaw("orb_vocab.fbow", vocabFile.absolutePath)
+            }
+
+            motionTracker?.initialize(configFile.absolutePath, vocabFile.absolutePath)
+            motionTracker?.setLoopDetector(false)
+        }
+        motionTracker?.startup()
+        motionTracker?.setMappingModule(true)
+
         publishBtnStatus.postValue(false)
         stopPublishingBtnStatus.postValue(true)
 
@@ -265,6 +310,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     fun stopPublish() {
         webRtcManager.stop()
+
+        motionTracker?.shutdown()
+        motionTracker?.destroy()
+        motionTracker = null
 
         audioSource?.dispose()
         videoCapturer?.stopCapture()
@@ -633,6 +682,19 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         }
     }
 
+
+    private fun copyFileFromRaw(srcFileName: String, destPath: String) {
+        var fs: InputStream? = null
+        var outFs: OutputStream? = null
+        try {
+            fs = application.assets.open(srcFileName)
+            outFs = File(destPath).outputStream()
+            fs.copyTo(outFs)
+        } finally {
+            fs?.closeQuietly()
+            outFs?.closeQuietly()
+        }
+    }
 
     override fun onUpdate(state: SimulatorState) {
         val roll = state.roll.format()
