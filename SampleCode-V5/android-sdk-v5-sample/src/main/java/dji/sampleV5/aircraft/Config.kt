@@ -7,6 +7,8 @@ import android.util.Log
 // if use the camera mounted on drone as the video source
 var USE_DRONE_CAMERA = true
 
+val FOR_SAFETY = true
+
 
 // if use the mock control class to test the control data sent from the headset
 const val USE_MOCK_CONTROL = true

@@ -2,13 +2,12 @@ package dji.sampleV5.aircraft.virtualcontroller
 
 import android.util.Log
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
+import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.models.ControlStatusData
 import dji.sampleV5.aircraft.utils.LogLevel
 import dji.sampleV5.aircraft.utils.toJson
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.KeyTools
-import dji.sdk.keyvalue.value.common.LocationCoordinate2D
-import dji.sdk.keyvalue.value.common.LocationCoordinate3D
 import dji.sdk.keyvalue.value.flightcontroller.FlightCoordinateSystem
 import dji.sdk.keyvalue.value.flightcontroller.VirtualStickFlightControlParam
 import dji.v5.common.callback.CommonCallbacks
@@ -23,7 +22,6 @@ import dji.v5.manager.aircraft.virtualstick.VirtualStickManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -37,7 +35,6 @@ import kotlin.math.abs
 
 typealias ControlStatusFeedback = (String, String) -> Unit
 typealias MessageNotifier = (Int, String, Throwable?) -> Unit
-typealias StatusUpdater = (String, String) -> Unit
 
 
 interface IDroneController {
@@ -48,21 +45,7 @@ interface IDroneController {
 
     suspend fun landOff()
 
-    fun changeDroneVelocity(
-        forwardBackward: Double = 0.0,
-        rightLeft: Double = 0.0,
-        rotateRightLeft: Double = 0.0,
-        period: Long = 1000,
-    )
-
     fun riseAndSetGimbal(angle: Double)
-
-    fun changeDroneVelocityBaseOnGround(
-        northAndSouth: Double = 0.0,
-        eastAndWest: Double = 0.0,
-        rotateRightLeft: Double = 0.0,
-        period: Long = 1000,
-    )
 
     suspend fun onControllerStatusData(data: ControlStatusData)
 
@@ -74,10 +57,8 @@ interface IDroneController {
 
 abstract class BaseDroneController(
     protected val scope: CoroutineScope,
-    protected val observable: RawDataObservable,
     protected val controlStatusFeedback: ControlStatusFeedback?,
     protected val messageNotifier: MessageNotifier?,
-    protected val statusUpdater: StatusUpdater?,
 ) : IDroneController {
 
     private var isReady: Boolean = false
@@ -86,7 +67,7 @@ abstract class BaseDroneController(
         return isReady
     }
 
-    protected open fun switchDroneStatus(isReady: Boolean) {
+    protected open suspend fun switchDroneStatus(isReady: Boolean) {
         if (isReady) {
             this@BaseDroneController.isReady = true
 
@@ -104,11 +85,9 @@ abstract class BaseDroneController(
 
 class MockDroneController(
     scope: CoroutineScope,
-    observable: RawDataObservable,
     controlStatusFeedback: ControlStatusFeedback?,
     messageNotifier: MessageNotifier?,
-    statusUpdater: StatusUpdater?,
-) : BaseDroneController(scope, observable, controlStatusFeedback, messageNotifier, statusUpdater) {
+) : BaseDroneController(scope, controlStatusFeedback, messageNotifier) {
 
     private val SESSION_ID = UUID.randomUUID().toString()
 
@@ -120,24 +99,6 @@ class MockDroneController(
     override suspend fun abort() {
         Timber.d("Mock to abort the control")
         switchDroneStatus(false)
-    }
-
-    override fun changeDroneVelocity(
-        forwardBackward: Double,
-        rightLeft: Double,
-        rotateRightLeft: Double,
-        period: Long,
-    ) {
-        Timber.d("Mock to change drone velocity: $forwardBackward / $rightLeft / $rotateRightLeft / $period")
-    }
-
-    override fun changeDroneVelocityBaseOnGround(
-        northAndSouth: Double,
-        eastAndWest: Double,
-        rotateRightLeft: Double,
-        period: Long,
-    ) {
-        Timber.d("Mock to change drone velocity: $northAndSouth / $eastAndWest / $rotateRightLeft / $period")
     }
 
     override suspend fun onControllerStatusData(data: ControlStatusData) {
@@ -158,11 +119,11 @@ class MockDroneController(
 
 class VirtualDroneController(
     scope: CoroutineScope,
-    observable: RawDataObservable,
     controlStatusFeedback: ControlStatusFeedback?,
+    private var positionMonitor: IPositionMonitor,
+    private var observable: RawDataObservable,
     messageNotifier: MessageNotifier?,
-    statusUpdater: StatusUpdater?,
-) : BaseDroneController(scope, observable, controlStatusFeedback, messageNotifier, statusUpdater) {
+) : BaseDroneController(scope, controlStatusFeedback, messageNotifier) {
 
     private val expectedTakeOffHeight = 1.2f
 
@@ -170,68 +131,90 @@ class VirtualDroneController(
 
     private var sendingCmdJob: Job? = null
 
-    private var controlStrategy: IControlStrategy? = null
+    private var synchronizationJob: Job? = null
 
-    private var positionMonitor: IPositionMonitor? = null
+    private var targetPosition: Vector3D = Vector3D(0f, 0f, 0f)
+
+    private var targetRotation: Vector3D = Vector3D(0f, 0f, 0f)
 
     init {
-        setObstacleAvoidanceWarningDistance(0.1)
-        setObstacleAvoidance(false, null)
+        scope.launch(Dispatchers.IO) {
+            setObstacleAvoidanceWarningDistance(0.1)
+            setObstacleAvoidance(false)
 
-        // set maximum height the drone can fly
-        KeyTools.createKey(FlightControllerKey.KeyHeightLimit).set(2, {
-            messageNotifier?.invoke(Log.DEBUG, "Set the maximum height of drone successfully", null)
-        }, {
-            messageNotifier?.invoke(
-                Log.ERROR,
-                "Failed to set maximum height of drone (${it.errorCode()}): ${it.hint()}",
-                null
-            )
-        })
+            setHeightLimit(2)
+        }
 
         droneParam = initDroneAdvancedParam()
         // TODO just for test
         droneParam.rollPitchCoordinateSystem = FlightCoordinateSystem.GROUND
     }
 
-    override fun switchDroneStatus(isReady: Boolean) {
+    override suspend fun switchDroneStatus(isReady: Boolean) {
         if (isReady) {
-            positionMonitor?.stop()
-
-            // TODO needed to be refactored
-            positionMonitor = if (true == controlStrategy?.isVirtualStickAdvancedParamNeeded())
-                DroneSpatialPositionMonitor(
-                    observable, statusUpdater
-                )
-            else
-                DroneSpatialPositionMonitor(observable, statusUpdater)
-
-            if (true == controlStrategy?.isVirtualStickNeeded()) {
-                positionMonitor?.start()
-                changeVirtualStickStatus(
-                    enable = true,
-                    syncAdvancedParam = true == controlStrategy?.isVirtualStickAdvancedParamNeeded()
-                ) {
-                    if (it) {
-                        controlStrategy?.updateDroneSpatialPositionMonitor(positionMonitor!!)
-                        super.switchDroneStatus(isReady)
-                    } else {
-                        positionMonitor?.stop()
-                    }
-                }
-            } else {
-                // this should not happen
-                positionMonitor?.start()
-                controlStrategy?.updateDroneSpatialPositionMonitor(null)
+            if (changeVirtualStickStatus(true)) {
+                VirtualStickManager.getInstance()
+                    .setVirtualStickAdvancedModeEnabled(true)
+                positionMonitor.start()
                 super.switchDroneStatus(true)
+
+                // INFO launch periodic task to synchronize drone posture to the headset
+                synchronizationJob = launchSynchronizationJob()
+            } else {
+                positionMonitor.stop()
+                throw Exception("Unable to enable virtual stick")
             }
+
         } else {
             super.switchDroneStatus(false)
-            adjustDroneVelocityOneTimeNED(0.0, 0.0, null)
-            changeVirtualStickStatus(enable = false, syncAdvancedParam = true, null)
-            positionMonitor?.stop()
-            positionMonitor = null
+            // INFO cancel periodic task
+            stopSynchronizationJobs()
+            // INFO reset the existing velocity in every direction, reset the gimbal angle to origin
+            adjustDroneVelocityOneTimeBodyBased(0.0, 0.0, null, null)
+            // disable advanced virtual stick control
+            VirtualStickManager.getInstance().setVirtualStickAdvancedModeEnabled(false)
+            // disable virtual stick control
+            changeVirtualStickStatus(false)
+            positionMonitor.stop()
         }
+    }
+
+    private fun launchSynchronizationJob(): Job {
+        val intervalInMillis = (1000 / SENDING_FREQUENCY).toLong()
+        return scope.launch(Dispatchers.IO) {
+            while (this.isActive) {
+                if (positionMonitor.isMonitoring()) {
+                    synchronizeDronePosture(intervalInMillis)
+                    delay(intervalInMillis)
+                } else {
+                    // currently drone position tracking is invalid, stop the drone control for its safety.
+                    adjustDroneVelocityOneTimeBodyBased(0.0, 0.0, null, null)
+                    delay(intervalInMillis / 10)
+                }
+            }
+        }
+    }
+
+    private fun synchronizeDronePosture(intervalInMillis: Long) {
+        // TODO neglect the direction first, only care about the position changes
+        val dronePos = positionMonitor.getPosition()
+
+        // only care about the x and z axes first
+        var xGap = targetPosition.x - dronePos.x
+        var zGap = targetPosition.z - dronePos.z
+        xGap = if (abs(xGap) > 0.10) xGap else 0f
+        zGap = if (abs(zGap) > 0.10) zGap else 0f
+
+        adjustDroneVelocityOneTimeBodyBased(
+            xGap / intervalInMillis * 1000.0,
+            zGap / intervalInMillis * 1000.0,
+            null,
+            null
+        )
+    }
+
+    private fun stopSynchronizationJobs() {
+        synchronizationJob?.cancel()
     }
 
     private suspend fun getDroneReady(): Unit = suspendCancellableCoroutine { continuation ->
@@ -251,7 +234,7 @@ class VirtualDroneController(
             val rawDataObserver = observable.register(ultrasonicHeightKey) { key, value ->
                 if (ultrasonicHeightKey.innerIdentifier == key.innerIdentifier && null != (value as? Int)) {
                     Timber.d("Retrieved valid height from ultrasonic (#2): $value")
-                        initHeight = value / 10.0
+                    initHeight = value / 10.0
                 }
             }
 
@@ -280,14 +263,13 @@ class VirtualDroneController(
 
     override suspend fun onControllerStatusData(data: ControlStatusData) {
         if (isDroneReady()) {
-            // TODO update the received position and rotation to the control strategy
-            controlStrategy?.onControllerStatusData(data)
+            // update the received position and rotation to the control strategy
+            targetPosition = data.currentPosition
+            targetRotation = data.currentRotation
         }
     }
 
     override suspend fun prepareDrone(controlMode: Int) {
-        controlStrategy = ControlViaHeadset(1000L / SENDING_FREQUENCY, true)
-
         if (!isDroneFlying()) {
             getDroneReady()
         } else {
@@ -307,41 +289,6 @@ class VirtualDroneController(
         })
     }
 
-    override fun changeDroneVelocity(
-        forwardBackward: Double,
-        rightLeft: Double,
-        rotateRightLeft: Double,
-        period: Long,
-    ) {
-        adjustDroneVelocity(forwardBackward, rightLeft, rotateRightLeft)
-
-        if (period <= 0) return
-
-        scope.launch(Dispatchers.Main) {
-            delay(period)
-
-            adjustDroneVelocity()
-        }
-    }
-
-    override fun changeDroneVelocityBaseOnGround(
-        northAndSouth: Double,
-        eastAndWest: Double,
-        rotateRightLeft: Double,
-        period: Long,
-    ) {
-        adjustDroneVelocity(northAndSouth, eastAndWest, rotateRightLeft)
-
-        if (period <= 0) return
-
-        scope.launch(Dispatchers.Main) {
-            delay(period)
-
-            adjustDroneVelocity()
-        }
-    }
-
-
     override suspend fun abort() {
         switchDroneStatus(false)
     }
@@ -352,10 +299,12 @@ class VirtualDroneController(
     }
 
     override suspend fun destroy() {
-        setObstacleAvoidance(true, null)
-        setObstacleAvoidanceWarningDistance(4.0)
+        if (setObstacleAvoidance(true)) {
+            setObstacleAvoidanceWarningDistance(4.0)
+        }
 
-        changeVirtualStickStatus(enable = false, syncAdvancedParam = true, null)
+        VirtualStickManager.getInstance().setVirtualStickAdvancedModeEnabled(false)
+        changeVirtualStickStatus(false)
     }
 
     /**
@@ -398,59 +347,102 @@ class VirtualDroneController(
 
     }
 
-    private fun setObstacleAvoidanceWarningDistance(distance: Double) {
-        listOf(
-            PerceptionDirection.HORIZONTAL,
-            PerceptionDirection.DOWNWARD,
-            PerceptionDirection.UPWARD
-        ).forEach { direction ->
-            PerceptionManager.getInstance().setObstacleAvoidanceWarningDistance(
-                distance,
-                direction,
+    private suspend fun setObstacleAvoidanceWarningDistance(distance: Double): Boolean =
+        suspendCancellableCoroutine { continuation ->
+            listOf(
+                PerceptionDirection.HORIZONTAL,
+                PerceptionDirection.DOWNWARD,
+                PerceptionDirection.UPWARD
+            ).forEach { direction ->
+                PerceptionManager.getInstance().setObstacleAvoidanceWarningDistance(
+                    distance,
+                    direction,
+                    object : CommonCallbacks.CompletionCallback {
+                        override fun onSuccess() {
+                            messageNotifier?.invoke(
+                                Log.DEBUG,
+                                "Set obstacle avoidance warning distance successfully for direction: ${direction.name}",
+                                null
+                            )
+                            continuation.resume(true)
+                        }
+
+                        override fun onFailure(p0: IDJIError) {
+                            messageNotifier?.invoke(
+                                Log.ERROR,
+                                "Set obstacle avoidance warning distance successfully for direction: ${direction.name}",
+                                null
+                            )
+                            continuation.resume(false)
+                        }
+                    })
+            }
+        }
+
+    private suspend fun setObstacleAvoidance(enable: Boolean): Boolean =
+        suspendCancellableCoroutine { continuation ->
+            // right here, can use the `setObstacleAvoidanceEnabled` to enable/disable obstacle avoidance in three directions,
+            // because the mini 3 pro does not support this kind of operation
+            PerceptionManager.getInstance().setObstacleAvoidanceType(
+                if (enable) ObstacleAvoidanceType.BYPASS else ObstacleAvoidanceType.CLOSE,
                 object : CommonCallbacks.CompletionCallback {
                     override fun onSuccess() {
                         messageNotifier?.invoke(
                             Log.DEBUG,
-                            "Set obstacle avoidance warning distance successfully for direction: ${direction.name}",
+                            "${if (enable) "Enable" else "Disable"} obstacle avoidance successfully",
                             null
                         )
+                        continuation.resume(true)
                     }
 
                     override fun onFailure(p0: IDJIError) {
                         messageNotifier?.invoke(
                             Log.ERROR,
-                            "Set obstacle avoidance warning distance successfully for direction: ${direction.name}",
+                            "${if (enable) "Enable" else "Disable"} obstacle avoidance failed (${p0.errorCode()}): ${p0.hint()}",
                             null
                         )
+                        continuation.resume(false)
                     }
                 })
         }
-    }
 
-    private fun setObstacleAvoidance(enable: Boolean, action: (() -> Unit)?) {
-        // right here, can use the `setObstacleAvoidanceEnabled` to enable/disable obstacle avoidance in three directions,
-        // because the mini 3 pro does not support this kind of operation
-        PerceptionManager.getInstance().setObstacleAvoidanceType(
-            if (enable) ObstacleAvoidanceType.BYPASS else ObstacleAvoidanceType.CLOSE,
-            object : CommonCallbacks.CompletionCallback {
+    private suspend fun setHeightLimit(limit: Int): Boolean =
+        suspendCancellableCoroutine { continuation ->
+            // set maximum height the drone can fly
+            KeyTools.createKey(FlightControllerKey.KeyHeightLimit).set(limit, {
+                messageNotifier?.invoke(
+                    Log.DEBUG,
+                    "Set the maximum height of drone successfully",
+                    null
+                )
+                continuation.resume(true)
+            }, {
+                messageNotifier?.invoke(
+                    Log.ERROR,
+                    "Failed to set maximum height of drone (${it.errorCode()}): ${it.hint()}",
+                    null
+                )
+                continuation.resume(false)
+            })
+        }
+
+    private suspend fun changeVirtualStickStatus(enable: Boolean): Boolean =
+        suspendCancellableCoroutine {
+            val callback = object : CommonCallbacks.CompletionCallback {
                 override fun onSuccess() {
-                    messageNotifier?.invoke(
-                        Log.DEBUG,
-                        "${if (enable) "Enable" else "Disable"} obstacle avoidance successfully",
-                        null
-                    )
-                    action?.invoke()
+                    TODO("Not yet implemented")
                 }
 
                 override fun onFailure(p0: IDJIError) {
-                    messageNotifier?.invoke(
-                        Log.ERROR,
-                        "${if (enable) "Enable" else "Disable"} obstacle avoidance failed (${p0.errorCode()}): ${p0.hint()}",
-                        null
-                    )
+                    TODO("Not yet implemented")
                 }
-            })
-    }
+            }
+            if (enable) {
+                VirtualStickManager.getInstance().enableVirtualStick(callback)
+            } else {
+                VirtualStickManager.getInstance().disableVirtualStick(callback)
+            }
+        }
 
     private fun changeVirtualStickStatus(
         enable: Boolean,

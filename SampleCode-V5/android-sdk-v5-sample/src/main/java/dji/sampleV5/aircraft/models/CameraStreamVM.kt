@@ -2,6 +2,7 @@ package dji.sampleV5.aircraft.models
 
 import android.Manifest
 import android.app.Application
+import android.os.SystemClock
 import android.util.ArrayMap
 import android.util.Log
 import androidx.lifecycle.MutableLiveData
@@ -14,6 +15,7 @@ import dji.sampleV5.aircraft.PING_INTERVAL
 import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
+import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.motiontracking.DjiMotionTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
@@ -22,7 +24,6 @@ import dji.sampleV5.aircraft.virtualcontroller.DroneStatusMonitor
 import dji.sampleV5.aircraft.virtualcontroller.IDroneController
 import dji.sampleV5.aircraft.virtualcontroller.MockDroneController
 import dji.sampleV5.aircraft.virtualcontroller.VirtualDroneController
-import dji.sampleV5.aircraft.virtualcontroller.normalizeToSCS
 import dji.sampleV5.aircraft.webrtc.ConnectionInfo
 import dji.sampleV5.aircraft.webrtc.DATA_RECEIVER
 import dji.sampleV5.aircraft.webrtc.DJIVideoCapturer
@@ -95,36 +96,18 @@ data class RootMessage(
     val from: String,
 )
 
-data class Vector2D(
-    var x: Float,
-    var y: Float
-) {
-    fun to3D(): Vector3D {
-        return Vector3D(x, y, 0.0f)
-    }
-}
-
-data class Vector3D(var x: Float, var y: Float, var z: Float) {
-    fun to2D(): Vector2D {
-        return Vector2D(x, y)
-    }
-}
 
 data class ControlStatusData(
-    var benchmarkPosition: Vector3D,
-    var benchmarkRotation: Vector3D,
-    var lastPosition: Vector3D,
-    var lastRotation: Vector3D,
-    var currentPosition: Vector3D,
-    var currentRotation: Vector3D,
+    var benchmarkPosition: Vector3D = Vector3D(),
+    var benchmarkRotation: Vector3D = Vector3D(),
+    var lastPosition: Vector3D = Vector3D(),
+    var lastRotation: Vector3D = Vector3D(),
+    var currentPosition: Vector3D = Vector3D(),
+    var currentRotation: Vector3D = Vector3D(),
 
-    var sampleTimestamp: Long,
-    var benchmarkSampleTimestamp: Long
-) {
-    fun getOrientationInSCS(): Double {
-        return (currentRotation.y.toDouble() - benchmarkRotation.y.toDouble()).normalizeToSCS()
-    }
-}
+    var sampleTimestamp: Long = SystemClock.elapsedRealtime(),
+    var benchmarkSampleTimestamp: Long = SystemClock.elapsedRealtime()
+)
 
 class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListener {
 
@@ -169,7 +152,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     private var videoFrameRate = 30
 
-    private val controllerStatusHandleScheduler = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val controllerStatusHandleScheduler =
+        Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
     fun initialize(application: Application) {
         this.application = application
@@ -212,17 +196,21 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 val rotation = tracker.getCurrentRotation()
                 val state = tracker.getTrackingState().toString()
 
-                emitMonitorStatus(mapOf(
-                    R.string.hint_drone_current_position.idToString() to "${position[0].format()} / ${position[1].format()} / ${position[2].format()}",
-                    R.string.hint_drone_attitude.idToString() to "${rotation[0].format()} / ${rotation[1].format()} / ${rotation[2].format()}",
-                    R.string.hint_drone_tracking_state.idToString() to state
-                ))
+                emitMonitorStatus(
+                    mapOf(
+                        R.string.hint_drone_current_position.idToString() to "${position[0].format()} / ${position[1].format()} / ${position[2].format()}",
+                        R.string.hint_drone_attitude.idToString() to "${rotation[0].format()} / ${rotation[1].format()} / ${rotation[2].format()}",
+                        R.string.hint_drone_tracking_state.idToString() to state
+                    )
+                )
             } ?: run {
-                emitMonitorStatus(mapOf(
-                    R.string.hint_drone_current_position.idToString() to "-/-/-",
-                    R.string.hint_drone_attitude.idToString() to "-/-/-",
-                    R.string.hint_drone_tracking_state.idToString() to "-"
-                ))
+                emitMonitorStatus(
+                    mapOf(
+                        R.string.hint_drone_current_position.idToString() to "-/-/-",
+                        R.string.hint_drone_attitude.idToString() to "-/-/-",
+                        R.string.hint_drone_tracking_state.idToString() to "-"
+                    )
+                )
             }
         }
         statusMonitor?.startMonitoring()
@@ -309,21 +297,17 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             droneController = if (USE_MOCK_CONTROL)
                 MockDroneController(
                     viewModelScope,
-                    statusMonitor!!,
                     this::controlStatusFeedback,
                     this::showMessageOnLogAndScreen
-                ) { key, value ->
-                    emitMonitorStatus(mapOf(key to value))
-                }
+                )
             else
                 VirtualDroneController(
                     viewModelScope,
-                    statusMonitor!!,
                     this::controlStatusFeedback,
+                    motionTracker!!,
+                    statusMonitor!!,
                     this::showMessageOnLogAndScreen
-                ) { key, value ->
-                    emitMonitorStatus(mapOf(key to value))
-                }
+                )
 
             try {
                 viewModelScope.launch(Dispatchers.Main) {
@@ -339,12 +323,15 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     }
 
     fun abortDroneControl() {
+        if (null == droneController) return
+        Timber.d("User click 'abort drone control'")
+
         viewModelScope.launch(Dispatchers.Main) {
             droneController?.abort()
+            startControlBtnStatus.postValue(true)
+            abortControlBtnStatus.postValue(false)
+            droneController = null
         }
-
-        startControlBtnStatus.postValue(true)
-        abortControlBtnStatus.postValue(false)
     }
 
     fun landOffDrone() {
@@ -358,50 +345,55 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 //        if (droneController?.isDroneReady() != true) {
 //            return
 //        }
-        val velocity = 0.25
+        // DEBUG create initial position
+
+        val controlData = ControlStatusData()
         when (direction) {
             R.id.btn_forward -> { // forward // North
                 showMessageOnLogAndScreen(Log.DEBUG, "Press forward")
-                droneController?.changeDroneVelocityBaseOnGround(velocity)
+                controlData.currentPosition.z += 0.10f
             }
 
             R.id.btn_backward -> { // backward
                 showMessageOnLogAndScreen(Log.DEBUG, "Press backward")
-                droneController?.changeDroneVelocityBaseOnGround(-velocity)
+                controlData.currentPosition.z -= 0.10f
             }
 
             R.id.btn_left -> { // left
                 showMessageOnLogAndScreen(Log.DEBUG, "Press left")
-                droneController?.changeDroneVelocityBaseOnGround(eastAndWest = -velocity)
+                controlData.currentPosition.x += 0.10f
             }
 
             R.id.btn_right -> { // right
                 showMessageOnLogAndScreen(Log.DEBUG, "Press right")
-                droneController?.changeDroneVelocityBaseOnGround(eastAndWest = velocity)
+                controlData.currentPosition.x -= 0.10f
             }
 
             R.id.btn_rotate_left -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Press rotate to left")
-                droneController?.changeDroneVelocity(rotateRightLeft = -10.0)
             }
 
             R.id.btn_rotate_right -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Press rotate to right")
-                droneController?.changeDroneVelocity(rotateRightLeft = 10.0)
             }
+
             R.id.btn_rise_gimbal -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Rise the gimbal")
                 droneController?.riseAndSetGimbal(10.0)
             }
+
             R.id.btn_set_gimbal -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Set the gimbal")
                 droneController?.riseAndSetGimbal(-10.0)
             }
+
             else -> {
                 // reset
                 showMessageOnLogAndScreen(Log.DEBUG, "Press reset")
-                droneController?.changeDroneVelocity(period = 0)
             }
+        }
+        viewModelScope.launch(Dispatchers.Main) {
+            droneController?.onControllerStatusData(controlData)
         }
     }
 
@@ -595,7 +587,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             SurfaceTextureHelper.create("CaptureThread", connectionInfo.eglBase.eglBaseContext),
             application, videoSource!!.capturerObserver
         )
-        videoCapturer!!.startCapture(videoResolution.first,videoResolution.second, videoFrameRate)
+        videoCapturer!!.startCapture(videoResolution.first, videoResolution.second, videoFrameRate)
 
         val localVideoTrack =
             connectionInfo.connectionFactory.createVideoTrack("videoTrack", videoSource)
@@ -641,13 +633,20 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         // INFO change the resolution and frame rate of the video, seems like it won't affect the video for streaming
         val config = VideoResolutionFrameRate(
             VideoResolution.RESOLUTION_1080X1920P,
-            VideoFrameRate.RATE_PRECISE_30FPS)
+            VideoFrameRate.RATE_PRECISE_30FPS
+        )
         KeyTools.createKey(CameraKey.KeyVideoResolutionFrameRate).set(config, {
-            showMessageOnLogAndScreen(Log.INFO, "Change video resolution to 1080x1920 and frame rate to 30")
+            showMessageOnLogAndScreen(
+                Log.INFO,
+                "Change video resolution to 1080x1920 and frame rate to 30"
+            )
             videoResolution = 1080 to 1920
             videoFrameRate = 30
         }, { error ->
-            showMessageOnLogAndScreen(Log.ERROR, "Fail to change the video resolution and frame rate ${error.errorCode()}: ${error.hint()}")
+            showMessageOnLogAndScreen(
+                Log.ERROR,
+                "Fail to change the video resolution and frame rate ${error.errorCode()}: ${error.hint()}"
+            )
         })
 
         // TODO change the camera focus length and test if it will affect the streaming video
@@ -660,9 +659,15 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         // TODO set the camera focus ring value
         KeyTools.createKey(CameraKey.KeyCameraFocusRingMaxValue).get({
             KeyTools.createKey(CameraKey.KeyCameraFocusRingValue).set(it, {
-                showMessageOnLogAndScreen(Log.INFO, "Set the maximum camera focus ring value to $it")
+                showMessageOnLogAndScreen(
+                    Log.INFO,
+                    "Set the maximum camera focus ring value to $it"
+                )
             }, {
-                showMessageOnLogAndScreen(Log.ERROR, "Fail to set the maximum camera focus ring value")
+                showMessageOnLogAndScreen(
+                    Log.ERROR,
+                    "Fail to set the maximum camera focus ring value"
+                )
             })
         }, {
             showMessageOnLogAndScreen(Log.ERROR, "Fail to get the maximum camera focus ring value")
