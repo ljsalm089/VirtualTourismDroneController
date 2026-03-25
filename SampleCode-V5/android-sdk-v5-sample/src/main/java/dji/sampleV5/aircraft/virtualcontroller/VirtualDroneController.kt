@@ -23,10 +23,15 @@ import dji.v5.manager.aircraft.virtualstick.VirtualStickManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 import java.util.UUID
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 
 
@@ -37,13 +42,11 @@ typealias StatusUpdater = (String, String) -> Unit
 
 interface IDroneController {
 
-    fun getInitialLocation(): LocationCoordinate3D?
+    suspend fun prepareDrone(controlMode: Int)
 
-    fun prepareDrone(controlMode: Int)
+    suspend fun abort()
 
-    fun abort()
-
-    fun landOff()
+    suspend fun landOff()
 
     fun changeDroneVelocity(
         forwardBackward: Double = 0.0,
@@ -61,9 +64,9 @@ interface IDroneController {
         period: Long = 1000,
     )
 
-    fun onControllerStatusData(data: ControlStatusData)
+    suspend fun onControllerStatusData(data: ControlStatusData)
 
-    fun destroy()
+    suspend fun destroy()
 
     fun isDroneReady(): Boolean
 
@@ -95,7 +98,7 @@ abstract class BaseDroneController(
         }
     }
 
-    override fun landOff() {
+    override suspend fun landOff() {
     }
 }
 
@@ -109,16 +112,12 @@ class MockDroneController(
 
     private val SESSION_ID = UUID.randomUUID().toString()
 
-    override fun getInitialLocation(): LocationCoordinate3D? {
-        return null
-    }
-
-    override fun prepareDrone(controlMode: Int) {
+    override suspend fun prepareDrone(controlMode: Int) {
         Timber.d("Mock to start the control")
         switchDroneStatus(true)
     }
 
-    override fun abort() {
+    override suspend fun abort() {
         Timber.d("Mock to abort the control")
         switchDroneStatus(false)
     }
@@ -141,7 +140,7 @@ class MockDroneController(
         Timber.d("Mock to change drone velocity: $northAndSouth / $eastAndWest / $rotateRightLeft / $period")
     }
 
-    override fun onControllerStatusData(data: ControlStatusData) {
+    override suspend fun onControllerStatusData(data: ControlStatusData) {
         val dataString = data.toJson()
         Timber.d("Received status changes from remote controller: $dataString")
 
@@ -150,7 +149,7 @@ class MockDroneController(
         Timber.log(LogLevel.VERBOSE_HEADSET_POSITION_CHANGES, "$SESSION_ID ---> $dataString")
     }
 
-    override fun destroy() {
+    override suspend fun destroy() {
     }
 
     override fun riseAndSetGimbal(angle: Double) {
@@ -165,12 +164,7 @@ class VirtualDroneController(
     statusUpdater: StatusUpdater?,
 ) : BaseDroneController(scope, observable, controlStatusFeedback, messageNotifier, statusUpdater) {
 
-    private var prepareJob: Job? = null
-
-    private var expectedTakeOffHeight = 1.2f
-
-    @Volatile
-    private var initialLocation: LocationCoordinate3D? = null
+    private val expectedTakeOffHeight = 1.2f
 
     private var droneParam: VirtualStickFlightControlParam
 
@@ -204,6 +198,7 @@ class VirtualDroneController(
         if (isReady) {
             positionMonitor?.stop()
 
+            // TODO needed to be refactored
             positionMonitor = if (true == controlStrategy?.isVirtualStickAdvancedParamNeeded())
                 DroneSpatialPositionMonitor(
                     observable, statusUpdater
@@ -218,8 +213,6 @@ class VirtualDroneController(
                     syncAdvancedParam = true == controlStrategy?.isVirtualStickAdvancedParamNeeded()
                 ) {
                     if (it) {
-                        prepareJob?.cancel()
-                        prepareJob = null
                         controlStrategy?.updateDroneSpatialPositionMonitor(positionMonitor!!)
                         super.switchDroneStatus(isReady)
                     } else {
@@ -230,8 +223,6 @@ class VirtualDroneController(
                 // this should not happen
                 positionMonitor?.start()
                 controlStrategy?.updateDroneSpatialPositionMonitor(null)
-                prepareJob?.cancel()
-                prepareJob = null
                 super.switchDroneStatus(true)
             }
         } else {
@@ -243,111 +234,77 @@ class VirtualDroneController(
         }
     }
 
-    private fun getDroneReady(isFlying: Boolean) {
-        // TODO be careful, the logic of this method heavily depends on getting location of the drone, this should be verified if it works indoor
-        if (isDroneReady() || null != prepareJob) {
-            // already got ready or in the preparing stage
-            return
-        }
+    private suspend fun getDroneReady(): Unit = suspendCancellableCoroutine { continuation ->
         // for now, there is no obvious status regarding this
         // the only way to do is to check if the drone reaches the height obtained from `KeyAircraftAttitude`
         // however, the height recognition is not that accurate.
+        Timber.d("Not flying, take off the drone first")
 
-        val locationKey = FlightControllerKey.KeyAircraftLocation3D
-        val ultrasonicHeightKey = FlightControllerKey.KeyUltrasonicHeight
+        // not flying, takeoff first
+        KeyTools.createKey(FlightControllerKey.KeyStartTakeoff).action()
 
-        // 0 is the location callback, 1 is the ultrasound height callback
-        val rawDataObserver = Array<OnRawDataObserver?>(2) {
-            null
-        }
-        var initHeight = 0.0
-        var isInDoor = false
+        val prepareJob = scope.launch(Dispatchers.IO) {
+            val ultrasonicHeightKey = FlightControllerKey.KeyUltrasonicHeight
+            var initHeight = 0.0
 
-        if (isFlying) {
-            Timber.d("already flying, set the status to ready, ignore setting home location and enable virtual stick control")
-            switchDroneStatus(true)
-            return
-        } else {
-            initialLocation = null
-            isInDoor = true
-            Timber.d("Not flying, take off the drone first")
-            // not flying, takeoff first
-            prepareJob = scope.launch(Dispatchers.IO) {
-                KeyTools.createKey(FlightControllerKey.KeyStartTakeoff).action()
-                rawDataObserver[0] = observable.register(locationKey) { key, value ->
-                    if (locationKey.innerIdentifier == key.innerIdentifier && null != (value as? LocationCoordinate3D)) {
-                        Timber.d("Retrieved valid location from gps (#2)")
-                        Timber.d("Retrieved valid location for checking if drone is ready or not")
-                        initialLocation = value
-                        isInDoor = false
-                        initHeight = initialLocation!!.altitude
-                    }
+            Timber.d("Register ultrasonic height listener")
+            val rawDataObserver = observable.register(ultrasonicHeightKey) { key, value ->
+                if (ultrasonicHeightKey.innerIdentifier == key.innerIdentifier && null != (value as? Int)) {
+                    Timber.d("Retrieved valid height from ultrasonic (#2): $value")
+                        initHeight = value / 10.0
                 }
-                Timber.d("Register ultrasonic height listener")
-                rawDataObserver[1] = observable.register(ultrasonicHeightKey) { key, value ->
-                    if (ultrasonicHeightKey.innerIdentifier == key.innerIdentifier && null != (value as? Int)) {
-                        Timber.d("Retrieved valid height from ultrasonic (#2): $value")
-                        if (isInDoor) {
-                            initHeight = value / 10.0
-                        } else {
-                            // within an outdoor environment, can receive the gps signal, so ignore the result of ultrasonic
-                        }
-                    }
-                }
-
-                // detect the height of the drone
-                var isAroundExpectedHeight: Boolean
-                do {
-                    delay(100)
-
-                    isAroundExpectedHeight =
-                        (abs(initHeight - expectedTakeOffHeight) <= abs(expectedTakeOffHeight / 10f))
-                } while (prepareJob?.isActive == true && !isAroundExpectedHeight)
-
-                Timber.d("The drone is ready or the task becomes invalid (${true != prepareJob?.isActive})")
-                rawDataObserver[0]?.let {
-                    observable.unregister(locationKey, it)
-                    rawDataObserver[0] = null
-                }
-                rawDataObserver[1]?.let {
-                    observable.unregister(ultrasonicHeightKey, it)
-                    rawDataObserver[1] = null
-                }
-
-                if (true == prepareJob?.isActive) {
-                    if (null != initialLocation) settingHomeLocation()
-                    Timber.d("The drone is ready now")
-                    switchDroneStatus(true)
-                }
-                prepareJob = null
             }
+
+            // detect the height of the drone
+            var isAroundExpectedHeight: Boolean
+            do {
+                delay(100)
+
+                isAroundExpectedHeight =
+                    (abs(initHeight - expectedTakeOffHeight) <= abs(expectedTakeOffHeight / 10f))
+            } while (this.isActive && !isAroundExpectedHeight)
+
+            Timber.d("The drone is ready or the task becomes invalid (${!this.isActive})")
+
+            observable.unregister(ultrasonicHeightKey, rawDataObserver)
+
+            if (this.isActive) {
+                continuation.resume(Unit)
+            }
+        }
+
+        continuation.invokeOnCancellation {
+            prepareJob.cancel()
         }
     }
 
-    override fun onControllerStatusData(data: ControlStatusData) {
+    override suspend fun onControllerStatusData(data: ControlStatusData) {
         if (isDroneReady()) {
+            // TODO update the received position and rotation to the control strategy
             controlStrategy?.onControllerStatusData(data)
         }
     }
 
-    override fun getInitialLocation(): LocationCoordinate3D? {
-        return this.initialLocation
-    }
-
-    override fun prepareDrone(controlMode: Int) {
+    override suspend fun prepareDrone(controlMode: Int) {
         controlStrategy = ControlViaHeadset(1000L / SENDING_FREQUENCY, true)
 
-        if (!this.isDroneReady() && null == prepareJob) {
-            KeyTools.createKey(FlightControllerKey.KeyIsFlying).get({ flying ->
-                flying?.let { getDroneReady(it) }
-            }, {
-                messageNotifier?.invoke(
-                    Log.ERROR,
-                    "Unable to check if drone is flying(${it.errorCode()}): ${it.hint()}",
-                    null
-                )
-            })
+        if (!isDroneFlying()) {
+            getDroneReady()
+        } else {
+            Timber.d("already flying, set the status to ready, ignore setting home location and enable virtual stick control")
         }
+        switchDroneStatus(true)
+    }
+
+    private suspend fun isDroneFlying(): Boolean = suspendCancellableCoroutine { continuation ->
+        KeyTools.createKey(FlightControllerKey.KeyIsFlying).get({ flying ->
+            flying?.let {
+                continuation.resume(it) { cause, _, _ -> null?.let { it1 -> it1(cause) } }
+            } ?: continuation.resumeWithException(Exception("Unable to check if drone is flying"))
+            continuation
+        }, {
+            continuation.resumeWithException(Exception("Unable to check if drone is flying(${it.errorCode()}): ${it.hint()}"))
+        })
     }
 
     override fun changeDroneVelocity(
@@ -385,19 +342,16 @@ class VirtualDroneController(
     }
 
 
-    override fun abort() {
+    override suspend fun abort() {
         switchDroneStatus(false)
-
-        prepareJob?.cancel()
-        prepareJob = null
     }
 
-    override fun landOff() {
+    override suspend fun landOff() {
         Timber.d("Start to land off the drone.")
         KeyTools.createKey(FlightControllerKey.KeyStartAutoLanding).action()
     }
 
-    override fun destroy() {
+    override suspend fun destroy() {
         setObstacleAvoidance(true, null)
         setObstacleAvoidanceWarningDistance(4.0)
 
@@ -556,11 +510,4 @@ class VirtualDroneController(
         }
     }
 
-    private fun settingHomeLocation() {
-        val homeLocation =
-            LocationCoordinate2D(initialLocation!!.latitude, initialLocation!!.longitude)
-        KeyTools.createKey(FlightControllerKey.KeyHomeLocation).set(homeLocation) {
-
-        }
-    }
 }

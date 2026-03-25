@@ -205,20 +205,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                         }
                     )
                 )
-
-                val loc = controller.getInitialLocation()
-                if (controller.isDroneReady() && null != loc) {
-                    if (statusMonitor?.droneInitialLocation != loc) {
-                        statusMonitor?.droneInitialLocation = loc
-                    }
-                    emitMonitorStatus(
-                        mapOf(
-                            R.string.hint_drone_initial_position.idToString() to "${loc.latitude} / ${loc.longitude} / ${loc.altitude.format()}"
-                        )
-                    )
-                } else {
-                    emitMonitorStatus(mapOf(R.string.hint_drone_initial_position.idToString() to "N/A"))
-                }
             }
 
             motionTracker?.let { tracker ->
@@ -240,24 +226,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             }
         }
         statusMonitor?.startMonitoring()
-        droneController = if (USE_MOCK_CONTROL)
-            MockDroneController(
-                viewModelScope,
-                statusMonitor!!,
-                this::controlStatusFeedback,
-                this::showMessageOnLogAndScreen
-            ) { key, value ->
-                emitMonitorStatus(mapOf(key to value))
-            }
-        else
-            VirtualDroneController(
-                viewModelScope,
-                statusMonitor!!,
-                this::controlStatusFeedback,
-                this::showMessageOnLogAndScreen
-            ) { key, value ->
-                emitMonitorStatus(mapOf(key to value))
-            }
 
         if (BuildConfig.DEBUG) {
             SimulatorManager.getInstance().addSimulatorStateListener(this)
@@ -334,27 +302,55 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     }
 
     fun getReadyForRemoteControl() {
-//        if (true != getReadyStatus.value) {
-//            showMessageOnLogAndScreen(Log.ERROR, "The headset is not online yet")
-//            return
-//        }
-
         // direct the drone to fly to an initial position
         Timber.d("User click 'prepare for remote control'")
-        droneController?.prepareDrone(0)
-        startControlBtnStatus.postValue(false)
-        abortControlBtnStatus.postValue(true)
+
+        if (null == droneController) {
+            droneController = if (USE_MOCK_CONTROL)
+                MockDroneController(
+                    viewModelScope,
+                    statusMonitor!!,
+                    this::controlStatusFeedback,
+                    this::showMessageOnLogAndScreen
+                ) { key, value ->
+                    emitMonitorStatus(mapOf(key to value))
+                }
+            else
+                VirtualDroneController(
+                    viewModelScope,
+                    statusMonitor!!,
+                    this::controlStatusFeedback,
+                    this::showMessageOnLogAndScreen
+                ) { key, value ->
+                    emitMonitorStatus(mapOf(key to value))
+                }
+
+            try {
+                viewModelScope.launch(Dispatchers.Main) {
+                    droneController?.prepareDrone(0)
+                    startControlBtnStatus.postValue(false)
+                    abortControlBtnStatus.postValue(true)
+                }
+            } catch (e: Exception) {
+                droneController = null
+                showMessageOnLogAndScreen(Log.ERROR, e.message ?: "", e)
+            }
+        }
     }
 
     fun abortDroneControl() {
-        droneController?.abort()
+        viewModelScope.launch(Dispatchers.Main) {
+            droneController?.abort()
+        }
 
         startControlBtnStatus.postValue(true)
         abortControlBtnStatus.postValue(false)
     }
 
     fun landOffDrone() {
-        droneController?.landOff()
+        viewModelScope.launch(Dispatchers.Main) {
+            droneController?.landOff()
+        }
     }
 
     fun flightToDirection(direction: Int) {
@@ -421,7 +417,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         webRtcManager.stop()
 
         statusMonitor?.stopMonitoring()
-        droneController?.destroy()
+
+        viewModelScope.launch(Dispatchers.Main) {
+            droneController?.destroy()
+        }
 
         if (BuildConfig.DEBUG) {
             SimulatorManager.getInstance().removeSimulatorStateListener(this)
