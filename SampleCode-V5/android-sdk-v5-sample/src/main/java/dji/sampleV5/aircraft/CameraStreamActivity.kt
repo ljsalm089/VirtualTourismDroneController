@@ -36,6 +36,7 @@ import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoCapturer
 import org.webrtc.VideoTrack
 import java.util.Random
+import androidx.core.view.isVisible
 
 class StatusAdapter(val context: Context) : RecyclerView.Adapter<BaseViewHolder>() {
 
@@ -198,6 +199,25 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         binding.btnLandOff.setOnClickListener {
             viewModel.landOffDrone()
         }
+
+        binding.imgStatusList.setOnClickListener {
+            if (binding.rvStatus.isVisible) {
+                binding.rvStatus.visibility = View.GONE
+            } else {
+                binding.rvStatus.visibility = View.VISIBLE
+            }
+        }
+        binding.imgMessageList.setOnClickListener {
+            if (binding.rvMessage.isVisible) {
+                binding.rvMessage.visibility = View.GONE
+            } else {
+                binding.rvMessage.visibility = View.VISIBLE
+            }
+        }
+        binding.btnTakePhoto.setOnClickListener {
+            viewModel.takePhoto()
+        }
+
         listOf(
             binding.btnForward,
             binding.btnBackward,

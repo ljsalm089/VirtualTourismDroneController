@@ -101,6 +101,6 @@ internal fun adjustCameraOrientation(pitch: Double, roll: Double, duration: Doub
  * @param originAngle the original angle
  * @param targetAngle the target angle
  */
-private fun shortestAngleInSCS(originAngle: Double, targetAngle: Double): Double {
+internal fun shortestAngle(originAngle: Double, targetAngle: Double): Double {
     return ((targetAngle - originAngle + 540) % 360 - 180)
 }

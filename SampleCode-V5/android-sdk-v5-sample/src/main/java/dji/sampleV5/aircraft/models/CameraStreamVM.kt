@@ -134,8 +134,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     private var videoSource: VideoSource? = null
     private var audioSource: AudioSource? = null
 
-    private var tmpPermission = listOf<String>()
-
     private val gson = Gson()
 
     private var lastDataLatencyTime: Long = 0
@@ -199,7 +197,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 emitMonitorStatus(
                     mapOf(
                         R.string.hint_drone_current_position.idToString() to "${position[0].format()} / ${position[1].format()} / ${position[2].format()}",
-                        R.string.hint_drone_attitude.idToString() to "${rotation[0].format()} / ${rotation[1].format()} / ${rotation[2].format()}",
+                        R.string.hint_drone_attitude.idToString() to "${rotation[0].format()} / ${rotation[2].format()} / ${rotation[1].format()}",
                         R.string.hint_drone_tracking_state.idToString() to state
                     )
                 )
@@ -239,7 +237,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
         if (null == motionTracker) {
             // TODO initialize the tracker first
-            motionTracker = DjiMotionTracker(Size(640.0, 360.0), Dispatchers.IO, viewModelScope)
+            motionTracker = DjiMotionTracker(Size(640.0, 360.0),
+                statusMonitor!!,
+                Dispatchers.IO, viewModelScope)
 
             val configFile: File = File(application.filesDir, "pixel_6_mono.yaml")
             if (!configFile.exists()) {
@@ -399,6 +399,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         viewModelScope.launch(Dispatchers.Main) {
             droneController?.onControllerStatusData(controlData)
         }
+    }
+
+    fun takePhoto() {
+
     }
 
     override fun accept(event: WebRtcEvent) {

@@ -7,7 +7,9 @@ import dji.sampleV5.aircraft.models.ControlStatusData
 import dji.sampleV5.aircraft.utils.LogLevel
 import dji.sampleV5.aircraft.utils.toJson
 import dji.sdk.keyvalue.key.FlightControllerKey
+import dji.sdk.keyvalue.key.GimbalKey
 import dji.sdk.keyvalue.key.KeyTools
+import dji.sdk.keyvalue.value.common.Attitude
 import dji.sdk.keyvalue.value.flightcontroller.FlightCoordinateSystem
 import dji.sdk.keyvalue.value.flightcontroller.VirtualStickFlightControlParam
 import dji.v5.common.callback.CommonCallbacks
@@ -153,7 +155,7 @@ class VirtualDroneController(
 
     override suspend fun switchDroneStatus(isReady: Boolean) {
         if (isReady) {
-            if (changeVirtualStickStatus(true)) {
+            if (changeVirtualStickStatus(true) && resetGimbal()) {
                 VirtualStickManager.getInstance()
                     .setVirtualStickAdvancedModeEnabled(true)
                 positionMonitor.start()
@@ -165,7 +167,6 @@ class VirtualDroneController(
                 positionMonitor.stop()
                 throw Exception("Unable to enable virtual stick")
             }
-
         } else {
             super.switchDroneStatus(false)
             // INFO cancel periodic task
@@ -206,7 +207,7 @@ class VirtualDroneController(
 
         // in Unity, y is the direction of up, but in stella vslam or opencv, y is the direction of down
         // TODO right here, assume the positive value of throttle is downward, still need to be confirmed
-        var yGap = - targetPosition.y - dronePos.y
+        var yGap = -targetPosition.y - dronePos.y
 
         // offset in 0.05 is acceptable
         xGap = if (abs(xGap) > 0.05) xGap else 0f
@@ -223,7 +224,11 @@ class VirtualDroneController(
 
         // calculate camera orientation and change the gimbal
         // x for raising and setting the gimbal
-        adjustCameraOrientation(targetRotation.x.toDouble(), targetRotation.y.toDouble(), intervalInMillis / 1000.0)
+        adjustCameraOrientation(
+            targetRotation.x.toDouble(),
+            targetRotation.y.toDouble(),
+            intervalInMillis / 1000.0
+        )
     }
 
     private fun stopSynchronizationJobs() {
@@ -302,6 +307,19 @@ class VirtualDroneController(
         })
     }
 
+    private suspend fun resetGimbal(): Boolean = suspendCancellableCoroutine { continuation ->
+        val attitude = Attitude(0.0, 0.0, 0.0)
+        KeyTools.createKey(GimbalKey.KeyGimbalAttitude).set(
+            attitude, {
+                Timber.d("Reset the gimbal successfully")
+                continuation.resume(true)
+            }, {
+                Timber.d("Failed to reset the gimbal")
+                continuation.resume(false)
+            }
+        )
+    }
+
     override suspend fun abort() {
         switchDroneStatus(false)
     }
@@ -320,49 +338,13 @@ class VirtualDroneController(
         changeVirtualStickStatus(false)
     }
 
-    /**
-     * This method is just for test.
-     * In velocity mode and body coordinate system, roll means forward/backward, pitch means right/left
-     * yaw: positive rotate towards right, negative rotate towards left
-     *
-     * TODO In velocity mode and ground coordinate system, roll means x axis (North), pitch means y axis (East),
-     *  throttle means z axis (Down), and yaw for rotation
-     */
-    private fun adjustDroneVelocity(
-        roll: Double = 0.0,
-        pitch: Double = 0.0,
-        yaw: Double = 0.0,
-        throttle: Double = 0.0,
-    ) {
-        droneParam.yaw = yaw
-        droneParam.roll = roll
-        droneParam.pitch = pitch
-        droneParam.verticalThrottle = throttle
-
-        val log =
-            "Change drone's velocity: ${if (pitch > 0) "Backward" else "Forward"}: ${abs(pitch)}\t" +
-                    "${if (roll >= 0) "Right" else "Left"}: ${abs(roll)}\tRotation: $yaw"
-        messageNotifier?.invoke(Log.INFO, log, null)
-
-        if (null == sendingCmdJob || !sendingCmdJob!!.isActive) {
-            sendingCmdJob = scope.launch(Dispatchers.IO) {
-                while (sendingCmdJob?.isActive == true && isDroneReady()) {
-                    // don't output the log to screen, there is too much log
-                    Timber.d("Sending advanced stick param to the drone: ${droneParam.toJson()}")
-                    VirtualStickManager.getInstance().sendVirtualStickAdvancedParam(droneParam)
-                    delay(1000L / SENDING_FREQUENCY)
-                }
-            }
-        }
-    }
-
     override fun riseAndSetGimbal(angle: Double) {
 
     }
 
     private suspend fun setObstacleAvoidanceWarningDistance(distance: Double): Boolean =
         suspendCancellableCoroutine { continuation ->
-            // TODO ???
+            // only callback after three settings are successful, or one of them is fail
             val callback = object : CommonCallbacks.CompletionCallback {
                 val callbackCount = AtomicInteger(0)
 
@@ -370,7 +352,8 @@ class VirtualDroneController(
                     if (callbackCount.incrementAndGet() == 3
                         && !continuation.isCompleted
                         && continuation.isActive
-                        && !continuation.isCancelled) {
+                        && !continuation.isCancelled
+                    ) {
                         continuation.resume(true)
                     }
                 }
@@ -391,7 +374,8 @@ class VirtualDroneController(
                 PerceptionManager.getInstance().setObstacleAvoidanceWarningDistance(
                     distance,
                     direction,
-                    callback)
+                    callback
+                )
             }
         }
 

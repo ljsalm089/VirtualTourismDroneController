@@ -17,17 +17,29 @@
             android:id="@+id/rv_status"
             android:layout_width="@dimen/uxsdk_350_dp"
             android:layout_height="match_parent"
+            android:background="#4D000000"
             android:clipChildren="false"
             android:clipToPadding="false"
             android:paddingVertical="@dimen/uxsdk_10_dp"
             android:paddingStart="@dimen/uxsdk_10_dp"
-            android:background="#4D000000"
             tools:listitem="@layout/item_monitoring_status" />
+
+        <ImageButton
+            android:id="@+id/img_status_list"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/uxsdk_ic_close" />
 
         <View
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/img_message_list"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/uxsdk_ic_close" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_message"
@@ -41,22 +53,22 @@
     <ImageView
         android:id="@+id/img_scroll_to_bottom"
         android:layout_width="wrap_content"
-        android:padding="@dimen/uxsdk_10_dp"
+        android:layout_height="wrap_content"
         android:layout_gravity="right|top"
-        android:visibility="gone"
+        android:padding="@dimen/uxsdk_10_dp"
         android:src="@drawable/uxsdk_ic_arrow_down"
-        android:layout_height="wrap_content"/>
+        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/ll_operations"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:divider="@drawable/vertical_divider"
         android:gravity="center"
         android:orientation="horizontal"
-        android:showDividers="middle"
-        android:divider="@drawable/vertical_divider"
-        android:paddingVertical="@dimen/uxsdk_10_dp">
+        android:paddingVertical="@dimen/uxsdk_10_dp"
+        android:showDividers="middle">
 
         <Button
             android:id="@+id/btn_start_publishing"
@@ -88,9 +100,15 @@
 
         <Button
             android:id="@+id/btn_land_off"
-            android:text="Land Off"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            android:text="Land Off" />
+
+        <Button
+            android:id="@+id/btn_take_photo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Take Photo"/>
     </LinearLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -110,11 +128,11 @@
 
         <Button
             android:id="@+id/btn_rotate_left"
-            android:text="Rotate L"
-            app:layout_constraintRight_toLeftOf="@+id/btn_forward"
-            app:layout_constraintBottom_toTopOf="@+id/btn_left"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            android:text="Rotate L"
+            app:layout_constraintBottom_toTopOf="@+id/btn_left"
+            app:layout_constraintRight_toLeftOf="@+id/btn_forward" />
 
         <Button
             android:id="@+id/btn_reset"
@@ -128,11 +146,11 @@
 
         <Button
             android:id="@+id/btn_rotate_right"
-            app:layout_constraintLeft_toRightOf="@+id/btn_forward"
-            app:layout_constraintBottom_toTopOf="@+id/btn_reset"
-            android:text="Rotate R"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            android:text="Rotate R"
+            app:layout_constraintBottom_toTopOf="@+id/btn_reset"
+            app:layout_constraintLeft_toRightOf="@+id/btn_forward" />
 
         <Button
             android:id="@+id/btn_backward"
@@ -146,19 +164,19 @@
 
         <Button
             android:id="@+id/btn_rise_gimbal"
-            app:layout_constraintRight_toLeftOf="@+id/btn_backward"
-            app:layout_constraintTop_toTopOf="@+id/btn_backward"
             android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Rise"
-            android:layout_height="wrap_content"/>
+            app:layout_constraintRight_toLeftOf="@+id/btn_backward"
+            app:layout_constraintTop_toTopOf="@+id/btn_backward" />
 
         <Button
             android:id="@+id/btn_set_gimbal"
-            app:layout_constraintTop_toTopOf="@+id/btn_rise_gimbal"
-            app:layout_constraintLeft_toRightOf="@+id/btn_backward"
             android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Set"
-            android:layout_height="wrap_content"/>
+            app:layout_constraintLeft_toRightOf="@+id/btn_backward"
+            app:layout_constraintTop_toTopOf="@+id/btn_rise_gimbal" />
 
         <Button
             android:id="@+id/btn_left"
