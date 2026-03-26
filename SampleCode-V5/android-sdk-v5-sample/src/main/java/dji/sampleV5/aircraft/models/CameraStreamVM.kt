@@ -120,11 +120,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     val message = MutableSharedFlow<Pair<Int, String>>(extraBufferCapacity = Int.MAX_VALUE)
 
-    val publishBtnStatus = MutableLiveData<Boolean>()
-    val stopPublishingBtnStatus = MutableLiveData<Boolean>()
-
-    val startControlBtnStatus = MutableLiveData<Boolean>()
-    val abortControlBtnStatus = MutableLiveData<Boolean>()
+    val isVideoPublish = MutableLiveData(false)
+    val isDroneControlling = MutableLiveData(false)
 
     val monitoringStatus =
         MutableSharedFlow<Map<String, String>>(extraBufferCapacity = Int.MAX_VALUE)
@@ -158,10 +155,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         webRtcManager = WebRtcManager(scope = viewModelScope, application)
         eventDisposable = webRtcManager.webRtcEventObservable.subscribe(this)
 
-        startControlBtnStatus.value = false
-        stopPublishingBtnStatus.value = false
-        publishBtnStatus.value = true
-        abortControlBtnStatus.value = true
+        isVideoPublish.value = false
+        isDroneControlling.value = false
 
         initializeEventHandles()
 
@@ -175,8 +170,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     Timber.d("If the drone is ready: ${controller.isDroneReady()}")
                     isDroneReady = controller.isDroneReady()
 
-                    abortControlBtnStatus.postValue(isDroneReady)
-                    startControlBtnStatus.postValue(!isDroneReady)
+                    isDroneControlling.postValue(isDroneReady)
                 }
                 emitMonitorStatus(
                     mapOf(
@@ -236,10 +230,12 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         webRtcManager.start()
 
         if (null == motionTracker) {
-            // TODO initialize the tracker first
-            motionTracker = DjiMotionTracker(Size(640.0, 360.0),
+            // TODO initialize the tracker first, the target size need to be adjusted based on the real resolution of the video
+            motionTracker = DjiMotionTracker(
+                Size(640.0, 360.0),
                 statusMonitor!!,
-                Dispatchers.IO, viewModelScope)
+                Dispatchers.IO, viewModelScope
+            )
 
             val configFile: File = File(application.filesDir, "pixel_6_mono.yaml")
             if (!configFile.exists()) {
@@ -257,11 +253,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         motionTracker?.startup()
         motionTracker?.setMappingModule(true)
 
-        publishBtnStatus.postValue(false)
-        stopPublishingBtnStatus.postValue(true)
-
-        startControlBtnStatus.postValue(true)
-        abortControlBtnStatus.postValue(false)
+        isVideoPublish.postValue(true)
+        isDroneControlling.postValue(false)
     }
 
     fun stopPublish() {
@@ -280,11 +273,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         videoCapturer = null
         videoSource = null
 
-        publishBtnStatus.postValue(true)
-        stopPublishingBtnStatus.postValue(false)
-
-        startControlBtnStatus.postValue(false)
-        abortControlBtnStatus.postValue(false)
+        isVideoPublish.postValue(false)
+        isDroneControlling.postValue(false)
 
         showMessageOnLogAndScreen(Log.INFO, "Stop publishing video.")
     }
@@ -312,8 +302,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             try {
                 viewModelScope.launch(Dispatchers.Main) {
                     droneController?.prepareDrone(0)
-                    startControlBtnStatus.postValue(false)
-                    abortControlBtnStatus.postValue(true)
+                    isDroneControlling.postValue(true)
                 }
             } catch (e: Exception) {
                 droneController = null
@@ -328,8 +317,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
         viewModelScope.launch(Dispatchers.Main) {
             droneController?.abort()
-            startControlBtnStatus.postValue(true)
-            abortControlBtnStatus.postValue(false)
+            isDroneControlling.postValue(false)
             droneController = null
         }
     }

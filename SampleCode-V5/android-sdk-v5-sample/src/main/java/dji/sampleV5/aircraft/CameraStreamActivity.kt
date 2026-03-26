@@ -18,6 +18,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -36,7 +37,6 @@ import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoCapturer
 import org.webrtc.VideoTrack
 import java.util.Random
-import androidx.core.view.isVisible
 
 class StatusAdapter(val context: Context) : RecyclerView.Adapter<BaseViewHolder>() {
 
@@ -59,7 +59,7 @@ class StatusAdapter(val context: Context) : RecyclerView.Adapter<BaseViewHolder>
                 R.string.hint_flight_mode.idToString() to "N/A",
                 R.string.hint_remote_controller_flight_mode.idToString() to "N/A",
                 R.string.hint_remote_control.idToString() to "N/A",
-                )
+            )
         )
         if (BuildConfig.DEBUG) {
             statusList.addAll(
@@ -162,8 +162,9 @@ class MessageAdapter : RecyclerView.Adapter<BaseViewHolder>() {
     }
 }
 
-fun TextView.updateTextColor(enable: Boolean?) {
-    this.setTextColor(if (enable == true) Color.WHITE else Color.GRAY)
+fun TextView.updateTextColor(enable: Boolean) {
+    this.isEnabled = enable
+    this.setTextColor(if (enable) Color.WHITE else Color.GRAY)
 }
 
 class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
@@ -229,7 +230,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             binding.btnRiseGimbal,
             binding.btnSetGimbal
         ).forEach { btn ->
-            btn.setOnClickListener { view->
+            btn.setOnClickListener { view ->
                 viewModel.flightToDirection(btn.id)
             }
 //            btn.visibility = View.GONE
@@ -240,18 +241,14 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             )
         }
 
-        viewModel.stopPublishingBtnStatus.observe(this) {
-            binding.btnStopPublishing.updateTextColor(it)
+        viewModel.isVideoPublish.observe(this) {
+            refreshVideoAndControlButtonStatus()
         }
-        viewModel.publishBtnStatus.observe(this) {
-            binding.btnStartPublishing.updateTextColor(it)
+
+        viewModel.isDroneControlling.observe(this) {
+            refreshVideoAndControlButtonStatus()
         }
-        viewModel.startControlBtnStatus.observe(this) {
-            binding.btnGetReadyToControl.updateTextColor(it)
-        }
-        viewModel.abortControlBtnStatus.observe(this) {
-            binding.btnAbortRemoteControl.updateTextColor(it)
-        }
+
         viewModel.requestPermissions.observe(this) {
             if (it.isNotEmpty()) {
                 requestPermissions(it.toTypedArray(), permissionReqCode)
@@ -313,12 +310,37 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
+    private fun refreshVideoAndControlButtonStatus() {
+        val isVideoOn = viewModel.isVideoPublish.value == true
+        val isControlOn = viewModel.isDroneControlling.value == true
+
+        if (isControlOn) {
+            binding.btnStartPublishing.updateTextColor(false)
+            binding.btnStopPublishing.updateTextColor(false)
+        } else {
+            binding.btnStartPublishing.updateTextColor(!isVideoOn)
+            binding.btnStopPublishing.updateTextColor(isVideoOn)
+        }
+
+        if (!isVideoOn) {
+            binding.btnGetReadyToControl.updateTextColor(false)
+            binding.btnAbortRemoteControl.updateTextColor(false)
+        } else {
+            binding.btnGetReadyToControl.updateTextColor(!isControlOn)
+            binding.btnAbortRemoteControl.updateTextColor(isControlOn)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
 
-        // update layout margin if hasn't yet
+        // update layout margin if it hasn't yet
         val params = binding.llInformation.layoutParams as? MarginLayoutParams
         if (params?.bottomMargin == 0) {
+            binding.llOperations.measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
             params.bottomMargin = binding.llOperations.measuredHeight
             binding.llInformation.layoutParams = params
         }
