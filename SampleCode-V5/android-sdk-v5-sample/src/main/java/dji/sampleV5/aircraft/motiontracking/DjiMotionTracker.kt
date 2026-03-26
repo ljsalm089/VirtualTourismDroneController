@@ -107,9 +107,12 @@ class DjiMotionTracker(
     override fun getRotation(): Vector3D {
         // the rotation is obtained from the drone information
         return Vector3D(
+            // x gimbal pitch
+            // y  = drone relative attitude
+            // z gimbal roll
             doubleArrayOf(
-                shortestAngle(currentAttitude, benchmarkAttitude),
                 gimbalAttitude[0],
+                shortestAngle(currentAttitude, benchmarkAttitude),
                 gimbalAttitude[1]
             )
         )

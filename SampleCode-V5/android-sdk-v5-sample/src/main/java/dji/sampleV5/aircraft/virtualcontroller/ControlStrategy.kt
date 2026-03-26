@@ -104,3 +104,8 @@ internal fun adjustCameraOrientation(pitch: Double, roll: Double, duration: Doub
 internal fun shortestAngle(originAngle: Double, targetAngle: Double): Double {
     return ((targetAngle - originAngle + 540) % 360 - 180)
 }
+
+
+internal fun Double.degreesToRadians() : Double {
+    return this * (Math.PI / 180.0)
+}

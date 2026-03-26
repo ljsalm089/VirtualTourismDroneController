@@ -34,6 +34,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 
 
 typealias ControlStatusFeedback = (String, String) -> Unit
@@ -200,6 +202,8 @@ class VirtualDroneController(
     private fun synchronizeDronePosture(intervalInMillis: Long) {
         // TODO neglect the direction first, only care about the position changes
         val dronePos = positionMonitor.getPosition()
+        val droneAttitude = positionMonitor.getRotation().y.toDouble().degreesToRadians()
+
 
         // only care about the x and z axes first
         var xGap = targetPosition.x - dronePos.x
@@ -214,11 +218,17 @@ class VirtualDroneController(
         zGap = if (abs(zGap) > 0.05) zGap else 0f
         yGap = if (abs(yGap) > 0.05) yGap else 0f
 
+        val zVelocity = zGap / intervalInMillis * 1000.0
+        val xVelocity = xGap / intervalInMillis * 1000.0
+        val yVelocity = yGap / intervalInMillis * 1000.0
+
+        val headVelocity = xVelocity * sin(droneAttitude) + zVelocity * cos(droneAttitude)
+        val rightVelocity = xVelocity * cos(droneAttitude) - zVelocity * sin(droneAttitude)
 
         adjustDroneVelocityOneTimeBodyBased(
-            zGap / intervalInMillis * 1000.0,
-            xGap / intervalInMillis * 1000.0,
-            yGap / intervalInMillis * 1000.0,
+            headVelocity,
+            rightVelocity,
+            yVelocity,
             null
         )
 
