@@ -351,22 +351,22 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         when (direction) {
             R.id.btn_forward -> { // forward // North
                 showMessageOnLogAndScreen(Log.DEBUG, "Press forward")
-                controlData.currentPosition.z += 0.10f
+                controlData.currentPosition.z += 0.06f
             }
 
             R.id.btn_backward -> { // backward
                 showMessageOnLogAndScreen(Log.DEBUG, "Press backward")
-                controlData.currentPosition.z -= 0.10f
+                controlData.currentPosition.z -= 0.06f
             }
 
             R.id.btn_left -> { // left
                 showMessageOnLogAndScreen(Log.DEBUG, "Press left")
-                controlData.currentPosition.x += 0.10f
+                controlData.currentPosition.x -= 0.06f
             }
 
             R.id.btn_right -> { // right
                 showMessageOnLogAndScreen(Log.DEBUG, "Press right")
-                controlData.currentPosition.x -= 0.10f
+                controlData.currentPosition.x += 0.06f
             }
 
             R.id.btn_rotate_left -> {

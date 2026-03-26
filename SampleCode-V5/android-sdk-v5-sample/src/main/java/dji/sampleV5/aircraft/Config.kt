@@ -7,11 +7,12 @@ import android.util.Log
 // if use the camera mounted on drone as the video source
 var USE_DRONE_CAMERA = true
 
-val FOR_SAFETY = true
+
+const val MAXIMUM_HORIZONTAL_VELOCITY = 0.2 // m/s
 
 
 // if use the mock control class to test the control data sent from the headset
-const val USE_MOCK_CONTROL = true
+const val USE_MOCK_CONTROL = false
 
 
 // the interval between sending two 'Ping' packet to test the data latency

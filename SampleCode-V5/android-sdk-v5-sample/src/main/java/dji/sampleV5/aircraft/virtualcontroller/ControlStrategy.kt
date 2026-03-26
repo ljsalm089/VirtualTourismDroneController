@@ -1,5 +1,6 @@
 package dji.sampleV5.aircraft.virtualcontroller
 
+import dji.sampleV5.aircraft.MAXIMUM_HORIZONTAL_VELOCITY
 import dji.sdk.keyvalue.key.GimbalKey
 import dji.sdk.keyvalue.key.KeyTools
 import dji.sdk.keyvalue.value.flightcontroller.FlightCoordinateSystem
@@ -12,6 +13,7 @@ import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotationMode
 import dji.v5.et.action
 import dji.v5.manager.aircraft.virtualstick.VirtualStickManager
 import timber.log.Timber
+import kotlin.math.abs
 
 
 internal fun initDroneAdvancedParam(): VirtualStickFlightControlParam {
@@ -70,6 +72,11 @@ internal fun adjustDroneVelocityOneTimeNED(
     VirtualStickManager.getInstance().sendVirtualStickAdvancedParam(param)
 }
 
+fun clipVelocityForSafty(velocity: Double) : Double {
+    return if (abs(velocity) >= MAXIMUM_HORIZONTAL_VELOCITY) {
+        if (velocity > 0) MAXIMUM_HORIZONTAL_VELOCITY else -MAXIMUM_HORIZONTAL_VELOCITY
+    } else velocity
+}
 
 /**
  * assign velocities, target attitude, target height to the drone
@@ -93,8 +100,8 @@ internal fun adjustDroneVelocityOneTimeBodyBased(
         param.yawControlMode = YawControlMode.ANGLE
         param.yaw = targetAttitude
     }
-    param.roll = forwardBackward
-    param.pitch = rightLeft
+    param.roll = clipVelocityForSafty(forwardBackward)
+    param.pitch = clipVelocityForSafty(rightLeft)
     param.rollPitchCoordinateSystem = FlightCoordinateSystem.BODY
     if (null == height) {
         param.verticalThrottle = 0.0

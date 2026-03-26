@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
@@ -202,12 +203,12 @@ class VirtualDroneController(
         // only care about the x and z axes first
         var xGap = targetPosition.x - dronePos.x
         var zGap = targetPosition.z - dronePos.z
-        xGap = if (abs(xGap) > 0.10) xGap else 0f
-        zGap = if (abs(zGap) > 0.10) zGap else 0f
+        xGap = if (abs(xGap) > 0.05) xGap else 0f
+        zGap = if (abs(zGap) > 0.05) zGap else 0f
 
         adjustDroneVelocityOneTimeBodyBased(
-            xGap / intervalInMillis * 1000.0,
             zGap / intervalInMillis * 1000.0,
+            xGap / intervalInMillis * 1000.0,
             null,
             null
         )
@@ -349,6 +350,27 @@ class VirtualDroneController(
 
     private suspend fun setObstacleAvoidanceWarningDistance(distance: Double): Boolean =
         suspendCancellableCoroutine { continuation ->
+            // TODO ???
+            val callback = object : CommonCallbacks.CompletionCallback {
+                val callbackCount = AtomicInteger(0)
+
+                override fun onSuccess() {
+                    if (callbackCount.incrementAndGet() == 3
+                        && !continuation.isCompleted
+                        && continuation.isActive
+                        && !continuation.isCancelled) {
+                        continuation.resume(true)
+                    }
+                }
+
+                override fun onFailure(p0: IDJIError) {
+                    if (!continuation.isCompleted && continuation.isActive && !continuation.isCancelled) {
+                        continuation.resume(false)
+                    }
+                }
+
+            }
+
             listOf(
                 PerceptionDirection.HORIZONTAL,
                 PerceptionDirection.DOWNWARD,
@@ -357,25 +379,7 @@ class VirtualDroneController(
                 PerceptionManager.getInstance().setObstacleAvoidanceWarningDistance(
                     distance,
                     direction,
-                    object : CommonCallbacks.CompletionCallback {
-                        override fun onSuccess() {
-                            messageNotifier?.invoke(
-                                Log.DEBUG,
-                                "Set obstacle avoidance warning distance successfully for direction: ${direction.name}",
-                                null
-                            )
-                            continuation.resume(true)
-                        }
-
-                        override fun onFailure(p0: IDJIError) {
-                            messageNotifier?.invoke(
-                                Log.ERROR,
-                                "Set obstacle avoidance warning distance successfully for direction: ${direction.name}",
-                                null
-                            )
-                            continuation.resume(false)
-                        }
-                    })
+                    callback)
             }
         }
 
@@ -427,14 +431,14 @@ class VirtualDroneController(
         }
 
     private suspend fun changeVirtualStickStatus(enable: Boolean): Boolean =
-        suspendCancellableCoroutine {
+        suspendCancellableCoroutine { continuation ->
             val callback = object : CommonCallbacks.CompletionCallback {
                 override fun onSuccess() {
-                    TODO("Not yet implemented")
+                    continuation.resume(true)
                 }
 
                 override fun onFailure(p0: IDJIError) {
-                    TODO("Not yet implemented")
+                    continuation.resume(false)
                 }
             }
             if (enable) {
@@ -443,63 +447,4 @@ class VirtualDroneController(
                 VirtualStickManager.getInstance().disableVirtualStick(callback)
             }
         }
-
-    private fun changeVirtualStickStatus(
-        enable: Boolean,
-        syncAdvancedParam: Boolean,
-        action: ((Boolean) -> Unit)?,
-    ) {
-        if (enable) {
-            VirtualStickManager.getInstance()
-                .enableVirtualStick(object : CommonCallbacks.CompletionCallback {
-                    override fun onSuccess() {
-                        messageNotifier?.invoke(
-                            Log.DEBUG,
-                            "Enable virtual stick successfully",
-                            null
-                        )
-
-                        if (syncAdvancedParam) VirtualStickManager.getInstance()
-                            .setVirtualStickAdvancedModeEnabled(true)
-
-                        action?.invoke(true)
-                    }
-
-                    override fun onFailure(p0: IDJIError) {
-                        messageNotifier?.invoke(
-                            Log.ERROR,
-                            "Failed to enable the virtual stick(${p0.errorCode()}): ${p0.hint()}",
-                            null
-                        )
-                        action?.invoke(false)
-                    }
-                })
-        } else {
-            if (syncAdvancedParam) VirtualStickManager.getInstance()
-                .setVirtualStickAdvancedModeEnabled(false)
-
-            VirtualStickManager.getInstance()
-                .disableVirtualStick(object : CommonCallbacks.CompletionCallback {
-                    override fun onSuccess() {
-                        messageNotifier?.invoke(
-                            Log.DEBUG,
-                            "Disable virtual stick successfully",
-                            null
-                        )
-                        action?.invoke(true)
-                    }
-
-                    override fun onFailure(p0: IDJIError) {
-                        messageNotifier?.invoke(
-                            Log.ERROR,
-                            "Failed to disable the virtual stick(${p0.errorCode()}): ${p0.hint()}",
-                            null
-                        )
-                        action?.invoke(false)
-                    }
-
-                })
-        }
-    }
-
 }
