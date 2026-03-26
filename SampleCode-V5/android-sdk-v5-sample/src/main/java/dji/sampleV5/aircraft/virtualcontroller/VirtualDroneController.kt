@@ -171,7 +171,7 @@ class VirtualDroneController(
             // INFO cancel periodic task
             stopSynchronizationJobs()
             // INFO reset the existing velocity in every direction, reset the gimbal angle to origin
-            adjustDroneVelocityOneTimeBodyBased(0.0, 0.0, null, null)
+            adjustDroneVelocityOneTimeBodyBased(0.0, 0.0, 0.0, null)
             // disable advanced virtual stick control
             VirtualStickManager.getInstance().setVirtualStickAdvancedModeEnabled(false)
             // disable virtual stick control
@@ -189,7 +189,7 @@ class VirtualDroneController(
                     delay(intervalInMillis)
                 } else {
                     // currently drone position tracking is invalid, stop the drone control for its safety.
-                    adjustDroneVelocityOneTimeBodyBased(0.0, 0.0, null, null)
+                    adjustDroneVelocityOneTimeBodyBased(0.0, 0.0, 0.0, null)
                     delay(intervalInMillis / 10)
                 }
             }
@@ -203,15 +203,27 @@ class VirtualDroneController(
         // only care about the x and z axes first
         var xGap = targetPosition.x - dronePos.x
         var zGap = targetPosition.z - dronePos.z
+
+        // in Unity, y is the direction of up, but in stella vslam or opencv, y is the direction of down
+        // TODO right here, assume the positive value of throttle is downward, still need to be confirmed
+        var yGap = - targetPosition.y - dronePos.y
+
+        // offset in 0.05 is acceptable
         xGap = if (abs(xGap) > 0.05) xGap else 0f
         zGap = if (abs(zGap) > 0.05) zGap else 0f
+        yGap = if (abs(yGap) > 0.05) yGap else 0f
+
 
         adjustDroneVelocityOneTimeBodyBased(
             zGap / intervalInMillis * 1000.0,
             xGap / intervalInMillis * 1000.0,
-            null,
+            yGap / intervalInMillis * 1000.0,
             null
         )
+
+        // calculate camera orientation and change the gimbal
+        // x for raising and setting the gimbal
+        adjustCameraOrientation(targetRotation.x.toDouble(), targetRotation.y.toDouble(), intervalInMillis / 1000.0)
     }
 
     private fun stopSynchronizationJobs() {
