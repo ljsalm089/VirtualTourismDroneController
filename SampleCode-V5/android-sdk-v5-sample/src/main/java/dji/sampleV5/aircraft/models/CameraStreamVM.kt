@@ -16,6 +16,7 @@ import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
 import dji.sampleV5.aircraft.data.Vector3D
+import dji.sampleV5.aircraft.media.DronePhotoCapturer
 import dji.sampleV5.aircraft.motiontracking.DjiMotionTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
@@ -73,6 +74,9 @@ import timber.log.Timber
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 
 
@@ -128,6 +132,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     private var videoCapturer: VideoCapturer? = null
 
+    private lateinit var photoCapturer: DronePhotoCapturer
+
     private var videoSource: VideoSource? = null
     private var audioSource: AudioSource? = null
 
@@ -154,6 +160,14 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         this.application = application
         webRtcManager = WebRtcManager(scope = viewModelScope, application)
         eventDisposable = webRtcManager.webRtcEventObservable.subscribe(this)
+
+        val dateTimeFormat = SimpleDateFormat("MMdd_HHmm", Locale.getDefault()).format(Date())
+        photoCapturer = DronePhotoCapturer(
+            viewModelScope,
+            Dispatchers.IO,
+            "drone_camera_calibration_${dateTimeFormat}_",
+            application.getExternalFilesDir(null)!!
+        )
 
         isVideoPublish.value = false
         isDroneControlling.value = false
@@ -253,8 +267,11 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         motionTracker?.startup()
         motionTracker?.setMappingModule(true)
 
+        photoCapturer.startup()
+
         isVideoPublish.postValue(true)
         isDroneControlling.postValue(false)
+
     }
 
     fun stopPublish() {
@@ -272,6 +289,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         audioSource = null
         videoCapturer = null
         videoSource = null
+
+        photoCapturer.stop()
 
         isVideoPublish.postValue(false)
         isDroneControlling.postValue(false)
@@ -390,11 +409,18 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     }
 
     fun takePhoto() {
-
+        viewModelScope.launch(Dispatchers.IO) {
+            val targetFile = photoCapturer.capture()
+            if (null != targetFile) {
+                showMessageOnLogAndScreen(Log.INFO, "Take a photo: $targetFile")
+            } else {
+                showMessageOnLogAndScreen(Log.ERROR, "Fail to take a photo")
+            }
+        }
     }
 
     override fun accept(event: WebRtcEvent) {
-        eventHandles.get(event.event)?.invoke(event)
+        eventHandles[event.event]?.invoke(event)
     }
 
     override fun onCleared() {

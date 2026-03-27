@@ -243,6 +243,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         viewModel.isVideoPublish.observe(this) {
             refreshVideoAndControlButtonStatus()
+
+            binding.btnTakePhoto.updateTextColor(it)
         }
 
         viewModel.isDroneControlling.observe(this) {
