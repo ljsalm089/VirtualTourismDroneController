@@ -300,6 +300,17 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 }
             }
         }
+
+        // update layout margin if it hasn't yet
+        val params = binding.llInformation.layoutParams as? MarginLayoutParams
+        if (params?.bottomMargin == 0) {
+            binding.llOperations.measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            params.bottomMargin = binding.llOperations.measuredHeight
+            binding.llInformation.layoutParams = params
+        }
     }
 
     private fun appendMessageToUI(msg: Pair<Int, String>) {
@@ -330,21 +341,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         } else {
             binding.btnGetReadyToControl.updateTextColor(!isControlOn)
             binding.btnAbortRemoteControl.updateTextColor(isControlOn)
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-
-        // update layout margin if it hasn't yet
-        val params = binding.llInformation.layoutParams as? MarginLayoutParams
-        if (params?.bottomMargin == 0) {
-            binding.llOperations.measure(
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            )
-            params.bottomMargin = binding.llOperations.measuredHeight
-            binding.llInformation.layoutParams = params
         }
     }
 
