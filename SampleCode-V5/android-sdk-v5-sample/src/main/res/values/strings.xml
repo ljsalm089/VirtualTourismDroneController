@@ -533,5 +533,6 @@ More refer to the release notes." </string>
     <string name="hint_motors_are_on">Motors are On</string>
     <string name="hint_is_flying">Drone Flying</string>
     <string name="hint_gimbal_attitude">Gimbal Attitude (Y/R/P)</string>
+    <string name="hint_camera_focus_value">Camera Focus Value</string>
 
 </resources>

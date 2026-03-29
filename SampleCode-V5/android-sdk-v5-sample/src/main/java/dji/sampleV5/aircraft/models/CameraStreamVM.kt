@@ -703,18 +703,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     it!!
                 )
             )
-            focusRingValue.postValue(it)
-            KeyTools.createKey(CameraKey.KeyCameraFocusRingValue).set(it, {
-                showMessageOnLogAndScreen(
-                    Log.INFO,
-                    "Set the maximum camera focus ring value to $it"
-                )
-            }, {
-                showMessageOnLogAndScreen(
-                    Log.ERROR,
-                    "Fail to set the maximum camera focus ring value"
-                )
-            })
+            showMessageOnLogAndScreen(Log.INFO, "Set the maximum camera focus ring value to 100")
         }, {
             showMessageOnLogAndScreen(Log.ERROR, "Fail to get the maximum camera focus ring value")
         })
@@ -725,8 +714,21 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     focusRingRange.value!!.upper
                 )
             )
+            showMessageOnLogAndScreen(Log.INFO, "Set the minimum camera focus ring value to 0")
         }, {
             showMessageOnLogAndScreen(Log.ERROR, "Fail to get the minimum camera focus ring value")
+        })
+        focusRingValue.postValue(49)
+        KeyTools.createKey(CameraKey.KeyCameraFocusRingValue).set(49, {
+            showMessageOnLogAndScreen(
+                Log.INFO,
+                "Set the maximum camera focus ring value to 49"
+            )
+        }, {
+            showMessageOnLogAndScreen(
+                Log.ERROR,
+                "Fail to set the maximum camera focus ring value"
+            )
         })
     }
 

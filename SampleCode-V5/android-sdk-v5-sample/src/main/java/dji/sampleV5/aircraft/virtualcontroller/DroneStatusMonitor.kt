@@ -14,6 +14,7 @@ import dji.sampleV5.aircraft.utils.LogLevel
 import dji.sampleV5.aircraft.utils.format
 import dji.sdk.keyvalue.key.AirLinkKey
 import dji.sdk.keyvalue.key.BatteryKey
+import dji.sdk.keyvalue.key.CameraKey
 import dji.sdk.keyvalue.key.DJIKeyInfo
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.GimbalKey
@@ -129,6 +130,8 @@ class DroneStatusMonitor(
         VirtualStickManager.getInstance().removeVirtualStickStateListener(this)
         PerceptionManager.getInstance().removePerceptionInformationListener(this)
         PerceptionManager.getInstance().removeObstacleDataListener(this)
+
+        droneStatusHandle.clear()
     }
 
     override fun onChange(key: DJIKeyInfo<*>, value: Any?) {
@@ -292,6 +295,11 @@ class DroneStatusMonitor(
             R.string.hint_wind_direction.idToString() to {
                 (it as? WindDirection)?.name ?: "N/A"
             }
+
+        // camera focus ring value
+        droneStatusHandle[CameraKey.KeyCameraFocusRingValue] = R.string.hint_camera_focus_value.idToString() to {
+            it?.toString() ?: "N/A"
+        }
 
         // TODO within indoor environment, ignore the factor of the wind
         droneStatusHandle.remove(FlightControllerKey.KeyWindWarning)

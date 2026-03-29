@@ -201,11 +201,37 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             viewModel.landOffDrone()
         }
 
+        binding.sliderFocusRing.addOnChangeListener { _, value, fromUser ->
+            if (fromUser) {
+                viewModel.updateFocusRing(value)
+            }
+        }
+
+        val testButtons = listOf(
+            binding.btnForward,
+            binding.btnBackward,
+            binding.btnLeft,
+            binding.btnRight,
+            binding.btnReset,
+            binding.btnRotateLeft,
+            binding.btnRotateRight,
+            binding.btnRiseGimbal,
+            binding.btnSetGimbal
+        )
+        testButtons.forEach { btn ->
+            btn.setOnClickListener { view ->
+                viewModel.flightToDirection(btn.id)
+            }
+//            btn.visibility = View.GONE
+        }
+
         binding.imgStatusList.setOnClickListener {
             if (binding.rvStatus.isVisible) {
                 binding.rvStatus.visibility = View.GONE
+                testButtons.forEach { view-> view.visibility = View.GONE }
             } else {
                 binding.rvStatus.visibility = View.VISIBLE
+                testButtons.forEach { view-> view.visibility = View.VISIBLE }
             }
         }
         binding.imgMessageList.setOnClickListener {
@@ -219,28 +245,6 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             viewModel.takePhoto()
         }
 
-        binding.sliderFocusRing.addOnChangeListener { _, value, fromUser ->
-            if (fromUser) {
-                viewModel.updateFocusRing(value)
-            }
-        }
-
-        listOf(
-            binding.btnForward,
-            binding.btnBackward,
-            binding.btnLeft,
-            binding.btnRight,
-            binding.btnReset,
-            binding.btnRotateLeft,
-            binding.btnRotateRight,
-            binding.btnRiseGimbal,
-            binding.btnSetGimbal
-        ).forEach { btn ->
-            btn.setOnClickListener { view ->
-                viewModel.flightToDirection(btn.id)
-            }
-//            btn.visibility = View.GONE
-        }
         binding.imgScrollToBottom.setOnClickListener {
             (binding.rvMessage.layoutManager as? LinearLayoutManager)?.scrollToPosition(
                 binding.rvMessage.adapter!!.itemCount - 1
@@ -276,6 +280,7 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         viewModel.focusRingRange.observe(this) {
             binding.sliderFocusRing.valueFrom = it.lower.toFloat()
             binding.sliderFocusRing.valueTo = it.upper.toFloat()
+            binding.sliderFocusRing.invalidate()
         }
 
         arrayOf(binding.rvMessage, binding.rvStatus).forEach {
