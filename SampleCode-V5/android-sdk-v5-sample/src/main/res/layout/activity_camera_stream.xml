@@ -200,4 +200,13 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/slider_focus_ring"
+        android:layout_marginTop="@dimen/uxsdk_15_dp"
+        android:layout_gravity="center|top"
+        android:layout_width="400dp"
+        android:stepSize="1"
+        android:layout_height="wrap_content"/>
+
 </FrameLayout>

@@ -219,6 +219,12 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             viewModel.takePhoto()
         }
 
+        binding.sliderFocusRing.addOnChangeListener { _, value, fromUser ->
+            if (fromUser) {
+                viewModel.updateFocusRing(value)
+            }
+        }
+
         listOf(
             binding.btnForward,
             binding.btnBackward,
@@ -262,6 +268,14 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             } else {
                 attachVideoToSurface(it.eglBase, it.videoTrack)
             }
+        }
+        viewModel.focusRingValue.observe(this) {
+            binding.sliderFocusRing.value = it.toFloat()
+        }
+
+        viewModel.focusRingRange.observe(this) {
+            binding.sliderFocusRing.valueFrom = it.lower.toFloat()
+            binding.sliderFocusRing.valueTo = it.upper.toFloat()
         }
 
         arrayOf(binding.rvMessage, binding.rvStatus).forEach {

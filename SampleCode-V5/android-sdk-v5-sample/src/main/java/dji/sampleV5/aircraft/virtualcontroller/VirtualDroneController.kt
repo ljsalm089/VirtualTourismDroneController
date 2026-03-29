@@ -4,7 +4,9 @@ import android.util.Log
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.models.ControlStatusData
+import dji.sampleV5.aircraft.motiontracking.DjiMotionTracker
 import dji.sampleV5.aircraft.utils.LogLevel
+import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toJson
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.GimbalKey
@@ -157,9 +159,10 @@ class VirtualDroneController(
 
     override suspend fun switchDroneStatus(isReady: Boolean) {
         if (isReady) {
-            if (changeVirtualStickStatus(true) && resetGimbal()) {
+            if (changeVirtualStickStatus(true) /*&& resetGimbal()*/) {
                 VirtualStickManager.getInstance()
                     .setVirtualStickAdvancedModeEnabled(true)
+                Timber.d("reset the position of the vslam")
                 positionMonitor.start()
                 super.switchDroneStatus(true)
 
@@ -202,7 +205,11 @@ class VirtualDroneController(
     private fun synchronizeDronePosture(intervalInMillis: Long) {
         // TODO neglect the direction first, only care about the position changes
         val dronePos = positionMonitor.getPosition()
-        val droneAttitude = positionMonitor.getRotation().y.toDouble().degreesToRadians()
+        val droneAttitudeInDegrees = positionMonitor.getPosition().y.toDouble()
+        val droneAttitudeInRadians = droneAttitudeInDegrees.degreesToRadians()
+
+        Timber.i("From position $dronePos to target $targetPosition")
+        Timber.i("From attitude: ${droneAttitudeInDegrees.format()} to target: ${targetRotation.y.format()}")
 
 
         // only care about the x and z axes first
@@ -222,21 +229,21 @@ class VirtualDroneController(
         val xVelocity = xGap / intervalInMillis * 1000.0
         val yVelocity = yGap / intervalInMillis * 1000.0
 
-        val headVelocity = xVelocity * sin(droneAttitude) + zVelocity * cos(droneAttitude)
-        val rightVelocity = xVelocity * cos(droneAttitude) - zVelocity * sin(droneAttitude)
+        val headVelocity = xVelocity * sin(droneAttitudeInRadians) + zVelocity * cos(droneAttitudeInRadians)
+        val rightVelocity = xVelocity * cos(droneAttitudeInRadians) - zVelocity * sin(droneAttitudeInRadians)
 
         adjustDroneVelocityOneTimeBodyBased(
             headVelocity,
             rightVelocity,
             yVelocity,
-            null
+            (positionMonitor as DjiMotionTracker).formatAttitude(targetRotation.y.toDouble())
         )
 
         // calculate camera orientation and change the gimbal
         // x for raising and setting the gimbal
         adjustCameraOrientation(
             targetRotation.x.toDouble(),
-            targetRotation.y.toDouble(),
+            targetRotation.z.toDouble(),
             intervalInMillis / 1000.0
         )
     }
@@ -324,7 +331,7 @@ class VirtualDroneController(
                 Timber.d("Reset the gimbal successfully")
                 continuation.resume(true)
             }, {
-                Timber.d("Failed to reset the gimbal")
+                Timber.d("Failed to reset the gimbal: ${it.description()}")
                 continuation.resume(false)
             }
         )

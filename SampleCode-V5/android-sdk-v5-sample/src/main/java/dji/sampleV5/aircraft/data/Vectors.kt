@@ -1,5 +1,7 @@
 package dji.sampleV5.aircraft.data
 
+import dji.sampleV5.aircraft.utils.format
+
 
 data class Vector2D(
     var x: Float,
@@ -10,6 +12,10 @@ data class Vector2D(
     }
 
     constructor(): this(0.0f, 0.0f)
+
+    override fun toString(): String {
+        return "{x: ${x.format()}, y: ${y.format()}}"
+    }
 }
 
 data class Vector3D(var x: Float, var y: Float, var z: Float) {
@@ -22,4 +28,8 @@ data class Vector3D(var x: Float, var y: Float, var z: Float) {
     constructor(data: DoubleArray) : this(data.first().toFloat(), data[1].toFloat(), data[2].toFloat())
 
     constructor() : this(0.0f, 0.0f, 0.0f)
+
+    override fun toString(): String {
+        return "{x: ${x.format()}, y: ${y.format()}, z: ${z.format()}}"
+    }
 }

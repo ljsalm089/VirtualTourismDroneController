@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.SystemClock
 import android.util.ArrayMap
 import android.util.Log
+import android.util.Range
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -152,6 +153,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     private var videoResolution = 1920 to 1080
 
     private var videoFrameRate = 30
+
+    var focusRingValue = MutableLiveData<Int>(1)
+    var focusRingRange = MutableLiveData<Range<Int>> (Range(0, 100))
 
     private val controllerStatusHandleScheduler =
         Executors.newSingleThreadExecutor().asCoroutineDispatcher()
@@ -302,6 +306,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         // direct the drone to fly to an initial position
         Timber.d("User click 'prepare for remote control'")
 
+        // TODO reset temporary variables
+        temporaryAngle = 0
+        temporaryGimbalAngle = 0
+
         if (null == droneController) {
             droneController = if (USE_MOCK_CONTROL)
                 MockDroneController(
@@ -347,6 +355,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         }
     }
 
+
+    private var temporaryAngle = 0
+    private var temporaryGimbalAngle = 0
+
     fun flightToDirection(direction: Int) {
         // comment this check for debugging
 //        if (droneController?.isDroneReady() != true) {
@@ -358,44 +370,43 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         when (direction) {
             R.id.btn_forward -> { // forward // North
                 showMessageOnLogAndScreen(Log.DEBUG, "Press forward")
-                controlData.currentPosition.z += 0.06f
-                controlData.currentRotation.x += 45
+                controlData.currentPosition.z += 0.2f
             }
 
             R.id.btn_backward -> { // backward
                 showMessageOnLogAndScreen(Log.DEBUG, "Press backward")
-                controlData.currentPosition.z -= 0.06f
-                controlData.currentRotation.x -= 45
+                controlData.currentPosition.z -= 0.2f
             }
 
             R.id.btn_left -> { // left
                 showMessageOnLogAndScreen(Log.DEBUG, "Press left")
-                controlData.currentPosition.x -= 0.06f
-                controlData.currentRotation.z += 45
+                controlData.currentPosition.x -= 0.2f
             }
 
             R.id.btn_right -> { // right
                 showMessageOnLogAndScreen(Log.DEBUG, "Press right")
-                controlData.currentPosition.x += 0.06f
-                controlData.currentRotation.z -= 45
+                controlData.currentPosition.x += 0.2f
             }
 
             R.id.btn_rotate_left -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Press rotate to left")
+                temporaryAngle -= 30
             }
 
             R.id.btn_rotate_right -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Press rotate to right")
+                temporaryAngle += 30
             }
 
             R.id.btn_rise_gimbal -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Rise the gimbal")
-                droneController?.riseAndSetGimbal(10.0)
+                temporaryGimbalAngle += 30
             }
 
             R.id.btn_set_gimbal -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Set the gimbal")
                 droneController?.riseAndSetGimbal(-10.0)
+                temporaryGimbalAngle -= 30
             }
 
             else -> {
@@ -403,6 +414,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 showMessageOnLogAndScreen(Log.DEBUG, "Press reset")
             }
         }
+        controlData.currentRotation.x = temporaryGimbalAngle.toFloat()
+        controlData.currentRotation.y = temporaryAngle.toFloat()
         viewModelScope.launch(Dispatchers.Main) {
             droneController?.onControllerStatusData(controlData)
         }
@@ -417,6 +430,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 showMessageOnLogAndScreen(Log.ERROR, "Fail to take a photo")
             }
         }
+    }
+
+    fun updateFocusRing(float: Float) {
+        KeyTools.createKey(CameraKey.KeyCameraFocusRingValue).set(float.toInt(), {}, {})
     }
 
     override fun accept(event: WebRtcEvent) {
@@ -680,6 +697,13 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
         // TODO set the camera focus ring value
         KeyTools.createKey(CameraKey.KeyCameraFocusRingMaxValue).get({
+            focusRingRange.postValue(
+                Range(
+                    focusRingRange.value!!.lower,
+                    it!!
+                )
+            )
+            focusRingValue.postValue(it)
             KeyTools.createKey(CameraKey.KeyCameraFocusRingValue).set(it, {
                 showMessageOnLogAndScreen(
                     Log.INFO,
@@ -693,6 +717,16 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             })
         }, {
             showMessageOnLogAndScreen(Log.ERROR, "Fail to get the maximum camera focus ring value")
+        })
+        KeyTools.createKey(CameraKey.KeyCameraFocusRingMinValue).get({
+            focusRingRange.postValue(
+                Range(
+                    it!!,
+                    focusRingRange.value!!.upper
+                )
+            )
+        }, {
+            showMessageOnLogAndScreen(Log.ERROR, "Fail to get the minimum camera focus ring value")
         })
     }
 

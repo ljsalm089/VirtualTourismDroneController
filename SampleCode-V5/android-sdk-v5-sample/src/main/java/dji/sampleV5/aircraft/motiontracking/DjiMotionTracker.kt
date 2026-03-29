@@ -79,6 +79,7 @@ class DjiMotionTracker(
 
             processFrame(processFrame)
 
+            tmpMat.release()
             frame.release()
         }
     }
@@ -116,6 +117,10 @@ class DjiMotionTracker(
                 gimbalAttitude[1]
             )
         )
+    }
+
+    fun formatAttitude(targetAttitude: Double): Double {
+        return ((benchmarkAttitude + 180 + targetAttitude) + 360) % 360 - 180
     }
 
     override fun start() {
