@@ -266,7 +266,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             }
 
             motionTracker?.initialize(configFile.absolutePath, vocabFile.absolutePath)
-            motionTracker?.setLoopDetector(false)
+            motionTracker?.setLoopDetector(true)
         }
         motionTracker?.startup()
         motionTracker?.setMappingModule(true)
