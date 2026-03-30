@@ -255,9 +255,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 Dispatchers.IO, viewModelScope
             )
 
-            val configFile: File = File(application.filesDir, "pixel_6_mono.yaml")
+            val configFile: File = File(application.filesDir, "drone_mono.yaml")
             if (!configFile.exists()) {
-                copyFileFromRaw("pixel_6_mono.yaml", configFile.absolutePath)
+                copyFileFromRaw("drone_mono.yaml", configFile.absolutePath)
             }
 
             val vocabFile = File(application.filesDir, "orb_vocab.fbow")
