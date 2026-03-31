@@ -233,8 +233,8 @@ class VirtualDroneController(
         val xVelocity = xGap / intervalInMillis * 1000.0
         val yVelocity = yGap / intervalInMillis * 1000.0
 
-        val headVelocity = xVelocity * sin(droneAttitudeInRadians) + zVelocity * cos(droneAttitudeInRadians)
-        val rightVelocity = xVelocity * cos(droneAttitudeInRadians) - zVelocity * sin(droneAttitudeInRadians)
+        val headVelocity = - xVelocity * sin(droneAttitudeInRadians) + zVelocity * cos(droneAttitudeInRadians)
+        val rightVelocity = xVelocity * cos(droneAttitudeInRadians) + zVelocity * sin(droneAttitudeInRadians)
 
         val targetAttitude = if (shortestAngle(droneAttitudeInDegrees, targetRotation.y.toDouble()) >= 1.0) {
             (positionMonitor as DjiMotionTracker).formatAttitude(targetRotation.y.toDouble())
