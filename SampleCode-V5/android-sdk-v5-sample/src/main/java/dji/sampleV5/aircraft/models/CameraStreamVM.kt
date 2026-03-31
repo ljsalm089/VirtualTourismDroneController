@@ -14,6 +14,7 @@ import dji.sampleV5.aircraft.BuildConfig
 import dji.sampleV5.aircraft.DJIApplication.Companion.idToString
 import dji.sampleV5.aircraft.PING_INTERVAL
 import dji.sampleV5.aircraft.R
+import dji.sampleV5.aircraft.TARGET_VIDEO_FRAME_SIZE
 import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
 import dji.sampleV5.aircraft.data.Vector3D
@@ -250,7 +251,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         if (null == motionTracker) {
             // TODO initialize the tracker first, the target size need to be adjusted based on the real resolution of the video
             motionTracker = DjiMotionTracker(
-                Size(640.0, 360.0),
+                TARGET_VIDEO_FRAME_SIZE,
                 statusMonitor!!,
                 Dispatchers.IO, viewModelScope
             )

@@ -2,6 +2,7 @@ package dji.sampleV5.aircraft
 
 import android.graphics.RectF
 import android.util.Log
+import org.opencv.core.Size
 
 
 // if use the camera mounted on drone as the video source
@@ -15,6 +16,8 @@ const val MAXIMUM_HORIZONTAL_VELOCITY = 0.2 // m/s
 const val USE_MOCK_CONTROL = false
 
 const val ONLY_OBSERVE_POSITION_CHANGE = true
+
+val TARGET_VIDEO_FRAME_SIZE = Size(640.0, 360.0)
 
 // the interval between sending two 'Ping' packet to test the data latency
 const val PING_INTERVAL = 1000L

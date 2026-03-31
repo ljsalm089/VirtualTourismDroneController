@@ -22,7 +22,6 @@ import org.opencv.core.Mat
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
 import timber.log.Timber
-import java.util.Timer
 
 class DjiMotionTracker(
     val targetSize: Size,
