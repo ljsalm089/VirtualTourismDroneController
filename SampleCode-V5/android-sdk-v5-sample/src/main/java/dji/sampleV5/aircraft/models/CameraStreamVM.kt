@@ -202,14 +202,14 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             }
 
             motionTracker?.let { tracker ->
-                val position = tracker.getCurrentPosition()
-                val rotation = tracker.getCurrentRotation()
+                val position = tracker.getPosition()
+                val rotation = tracker.getRotation()
                 val state = tracker.getTrackingState().toString()
 
                 emitMonitorStatus(
                     mapOf(
-                        R.string.hint_drone_current_position.idToString() to "${position[0].format()} / ${position[1].format()} / ${position[2].format()}",
-                        R.string.hint_drone_attitude.idToString() to "${rotation[0].format()} / ${rotation[2].format()} / ${rotation[1].format()}",
+                        R.string.hint_drone_current_position.idToString() to "${position.x.format()} / ${position.y.format()} / ${position.z.format()}",
+                        R.string.hint_drone_attitude.idToString() to "${rotation.y.format()} / ${rotation.z.format()} / ${rotation.x.format()}",
                         R.string.hint_drone_tracking_state.idToString() to state
                     )
                 )
@@ -370,12 +370,12 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         when (direction) {
             R.id.btn_forward -> { // forward // North
                 showMessageOnLogAndScreen(Log.DEBUG, "Press forward")
-                controlData.currentPosition.z += 0.2f
+                controlData.currentPosition.y -= 0.2f
             }
 
             R.id.btn_backward -> { // backward
                 showMessageOnLogAndScreen(Log.DEBUG, "Press backward")
-                controlData.currentPosition.z -= 0.2f
+                controlData.currentPosition.y += 0.2f
             }
 
             R.id.btn_left -> { // left
@@ -390,26 +390,27 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
             R.id.btn_rotate_left -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Press rotate to left")
-                temporaryAngle -= 30
+                temporaryAngle -= 5
             }
 
             R.id.btn_rotate_right -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Press rotate to right")
-                temporaryAngle += 30
+                temporaryAngle += 5
             }
 
             R.id.btn_rise_gimbal -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Rise the gimbal")
-                temporaryGimbalAngle += 30
+                temporaryGimbalAngle += 10
             }
 
             R.id.btn_set_gimbal -> {
                 showMessageOnLogAndScreen(Log.DEBUG, "Set the gimbal")
-                droneController?.riseAndSetGimbal(-10.0)
-                temporaryGimbalAngle -= 30
+                temporaryGimbalAngle -= 10
             }
 
             else -> {
+                temporaryAngle = 0
+                temporaryGimbalAngle = 0
                 // reset
                 showMessageOnLogAndScreen(Log.DEBUG, "Press reset")
             }
@@ -445,9 +446,24 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         controllerStatusHandleScheduler.closeQuietly()
         eventDisposable.dispose()
 
-        webRtcManager.stop()
+        webRtcManager.destroy()
 
         statusMonitor?.stopMonitoring()
+
+        motionTracker?.shutdown()
+        motionTracker?.destroy()
+        motionTracker = null
+
+        audioSource?.dispose()
+        videoCapturer?.stopCapture()
+        videoCapturer?.dispose()
+        videoSource?.dispose()
+
+        audioSource = null
+        videoCapturer = null
+        videoSource = null
+
+        photoCapturer.stop()
 
         viewModelScope.launch(Dispatchers.Main) {
             droneController?.destroy()

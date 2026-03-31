@@ -205,7 +205,7 @@ class VirtualDroneController(
     private fun synchronizeDronePosture(intervalInMillis: Long) {
         // TODO neglect the direction first, only care about the position changes
         val dronePos = positionMonitor.getPosition()
-        val droneAttitudeInDegrees = positionMonitor.getPosition().y.toDouble()
+        val droneAttitudeInDegrees = positionMonitor.getRotation().y.toDouble()
         val droneAttitudeInRadians = droneAttitudeInDegrees.degreesToRadians()
 
         Timber.i("From position $dronePos to target $targetPosition")
@@ -216,9 +216,9 @@ class VirtualDroneController(
         var xGap = targetPosition.x - dronePos.x
         var zGap = targetPosition.z - dronePos.z
 
-        // in Unity, y is the direction of up, but in stella vslam or opencv, y is the direction of down
-        // TODO right here, assume the positive value of throttle is downward, still need to be confirmed
-        var yGap = -targetPosition.y - dronePos.y
+        // TODO in Unity, y is the direction of up,
+        //  but in stella vslam or opencv, y is the direction of down, which is same as the drone
+        var yGap = targetPosition.y - dronePos.y
 
         // offset in 0.05 is acceptable
         xGap = if (abs(xGap) > 0.05) xGap else 0f
@@ -232,11 +232,17 @@ class VirtualDroneController(
         val headVelocity = xVelocity * sin(droneAttitudeInRadians) + zVelocity * cos(droneAttitudeInRadians)
         val rightVelocity = xVelocity * cos(droneAttitudeInRadians) - zVelocity * sin(droneAttitudeInRadians)
 
+        val targetAttitude = if (shortestAngle(droneAttitudeInDegrees, targetRotation.y.toDouble()) >= 1.0) {
+            (positionMonitor as DjiMotionTracker).formatAttitude(targetRotation.y.toDouble())
+        } else {
+            null
+        }
+
         adjustDroneVelocityOneTimeBodyBased(
             headVelocity,
             rightVelocity,
-            yVelocity,
-            (positionMonitor as DjiMotionTracker).formatAttitude(targetRotation.y.toDouble())
+            - yVelocity,
+            targetAttitude
         )
 
         // calculate camera orientation and change the gimbal

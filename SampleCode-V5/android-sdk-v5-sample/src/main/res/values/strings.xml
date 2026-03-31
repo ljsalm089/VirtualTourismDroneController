@@ -509,7 +509,7 @@ More refer to the release notes." </string>
     <string name="hint_flight_control_connected">Flight Control Connected</string>
 
     <string name="hint_drone_initial_position">Drone Initial Position</string>
-    <string name="hint_drone_current_position">Drone Current Position</string>
+    <string name="hint_drone_current_position">Drone Current Position (x/y/z)</string>
     <string name="hint_drone_distance_to_ip">Distance to IP(m)</string>
     <string name="hint_drone_attitude">Drone Attitude (Y/R/P)</string>
     <string name="hint_drone_velocity">Drone Velocity (N/E/D)</string>

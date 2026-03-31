@@ -229,6 +229,12 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
         mExChange?.destroy()
     }
 
+    fun destroy() {
+        stop()
+        peerConnectionFactory.dispose()
+        eglBase.release()
+    }
+
     override fun emit(event: WebRtcEvent) {
         // filter out all message from this end
         webRtcEventObservable.onNext(event)

@@ -1,9 +1,8 @@
 package dji.sampleV5.aircraft.media
 
+import java.lang.reflect.Method
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.concurrent.atomics.AtomicInt
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 class VideoFrame (data: ByteArray, val length: Int, val width: Int, val height: Int, val format: Int) {
 
@@ -23,7 +22,41 @@ class VideoFrame (data: ByteArray, val length: Int, val width: Int, val height: 
 
     fun release() {
         if (counter.decrementAndGet() == 0) {
-            buffer.clear()
+            release(buffer)
+        }
+    }
+
+    companion object {
+
+        lateinit var cleanMethod: Method
+        lateinit var clearMethod: Method
+
+        init {
+            try {
+                val buffer = ByteBuffer.allocateDirect(1)
+
+                cleanMethod = buffer.javaClass.getMethod("cleaner")
+                cleanMethod.isAccessible = true
+
+                val cleaner = cleanMethod.invoke(buffer)
+
+                cleaner?.let {
+                    clearMethod = cleaner.javaClass.getMethod("clean")
+                    clearMethod.isAccessible = true
+
+                    clearMethod.invoke(cleaner)
+                }
+            } catch (e: Exception) {
+
+            }
+        }
+
+        fun release(buffer: ByteBuffer) {
+            try {
+                clearMethod.invoke(cleanMethod.invoke(buffer))
+            } catch (e: Exception) {
+
+            }
         }
     }
 }

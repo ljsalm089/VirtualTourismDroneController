@@ -54,11 +54,13 @@ abstract class VSLamTracker<I, O> {
         return TrackingState.from(nativeTrackingState(trackerPtr))
     }
 
-    fun getCurrentPosition(): DoubleArray {
+    @CallSuper
+    open fun getCurrentPosition(): DoubleArray {
         return getPositionAndRotation().slice(IntRange(0, 2)).toDoubleArray()
     }
 
-    fun getCurrentRotation(): DoubleArray {
+    @CallSuper
+    open fun getCurrentRotation(): DoubleArray {
         return getPositionAndRotation().slice(IntRange(3, 5)).toDoubleArray()
     }
 

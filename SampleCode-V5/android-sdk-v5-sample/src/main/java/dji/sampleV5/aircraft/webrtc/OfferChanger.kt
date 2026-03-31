@@ -697,6 +697,7 @@ class WebSocketOfferExchange(
 
         webSocket?.close(1000, "close the websocket actively")
         webSocket = null
+        headsetStatusCallBack = null
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {

@@ -10,13 +10,13 @@ class Camera2VisionTracker (val targetSize: Size, val drawPoints: Boolean) :
 
     private val resizedMat = Mat()
 
-    private lateinit var resizeProcessedFrame: Mat
+    private var resizeProcessedFrame: Mat? = null
 
     override fun feedFrame(frame: CameraBridgeViewBase.CvCameraViewFrame): Mat? {
         val grayMat = frame.gray()
 
         if (drawPoints) {
-            if (!this::resizeProcessedFrame.isInitialized) {
+            if (resizeProcessedFrame == null) {
                 resizeProcessedFrame = Mat(grayMat.size(), grayMat.type())
             }
         }
@@ -29,12 +29,15 @@ class Camera2VisionTracker (val targetSize: Size, val drawPoints: Boolean) :
         }
 
         val processedMat = getProcessedFrame()
-        Imgproc.resize(processedMat, resizeProcessedFrame, grayMat.size())
+        Imgproc.resize(processedMat, resizeProcessedFrame!!, grayMat.size())
+        processedMat.release()
         return resizeProcessedFrame
     }
 
     override fun destroy() {
         super.destroy()
         resizedMat.release()
+        resizeProcessedFrame?.release()
+        resizeProcessedFrame = null
     }
 }

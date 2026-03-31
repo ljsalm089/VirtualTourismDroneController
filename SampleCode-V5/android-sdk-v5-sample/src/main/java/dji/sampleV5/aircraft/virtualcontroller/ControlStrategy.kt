@@ -1,6 +1,7 @@
 package dji.sampleV5.aircraft.virtualcontroller
 
 import dji.sampleV5.aircraft.MAXIMUM_HORIZONTAL_VELOCITY
+import dji.sampleV5.aircraft.utils.format
 import dji.sdk.keyvalue.key.GimbalKey
 import dji.sdk.keyvalue.key.KeyTools
 import dji.sdk.keyvalue.value.flightcontroller.FlightCoordinateSystem
@@ -48,6 +49,10 @@ internal fun adjustDroneVelocityOneTimeBodyBased(
     downwardUpward: Double = 0.0,
     targetAttitude: Double? = 0.0,
 ) {
+    if (0.0 == forwardBackward && 0.0 == rightLeft && 0.0 == downwardUpward && null == targetAttitude) {
+        return
+    }
+    Timber.d("forward: ${forwardBackward.format(5)} right: ${rightLeft.format(5)} down: ${downwardUpward.format(5)}")
     val param = initDroneAdvancedParam()
     if (null == targetAttitude) {
         // no valid angle, convert to velocity mode and set velocity to 0 to avoid rotation
@@ -100,6 +105,8 @@ internal fun adjustCameraOrientation(pitch: Double, roll: Double, duration: Doub
  *
  * @param originAngle the original angle
  * @param targetAngle the target angle
+ *
+ * @return range from -180 to 180
  */
 internal fun shortestAngle(originAngle: Double, targetAngle: Double): Double {
     return ((targetAngle - originAngle + 540) % 360 - 180)

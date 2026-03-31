@@ -21,6 +21,7 @@ import org.opencv.core.CvType
 import org.opencv.core.Mat
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
+import timber.log.Timber
 
 class DjiMotionTracker(
     val targetSize: Size,
@@ -37,6 +38,8 @@ class DjiMotionTracker(
     private val attitudeKey = FlightControllerKey.KeyAircraftAttitude
 
     private var benchmarkAttitude: Double = 0.0
+
+    private var benchmarkPosition: Vector3D = Vector3D(DoubleArray(3))
 
     private var currentAttitude: Double = 0.0
 
@@ -101,22 +104,29 @@ class DjiMotionTracker(
         feedFrame(frame)
     }
 
+    override fun getCurrentPosition(): DoubleArray {
+        val position = super.getCurrentPosition()
+        position[0] -= benchmarkPosition.x
+        position[1] -= benchmarkPosition.y
+        position[2] -= benchmarkPosition.z
+        return position
+    }
+
     override fun getPosition(): Vector3D {
         return Vector3D(getCurrentPosition())
     }
 
+    override fun getCurrentRotation(): DoubleArray {
+        val rotation = super.getCurrentRotation()
+        rotation[0] = gimbalAttitude[0]
+        rotation[1] = shortestAngle(currentAttitude, benchmarkAttitude)
+        rotation[2] = gimbalAttitude[1]
+        return rotation
+    }
+
     override fun getRotation(): Vector3D {
         // the rotation is obtained from the drone information
-        return Vector3D(
-            // x gimbal pitch
-            // y  = drone relative attitude
-            // z gimbal roll
-            doubleArrayOf(
-                gimbalAttitude[0],
-                shortestAngle(currentAttitude, benchmarkAttitude),
-                gimbalAttitude[1]
-            )
-        )
+        return Vector3D(getCurrentRotation())
     }
 
     fun formatAttitude(targetAttitude: Double): Double {
@@ -125,7 +135,15 @@ class DjiMotionTracker(
 
     override fun start() {
         // reset the location and orientation
+        // the operation of relocalization is asynchronous
         this.relocalizeCameraPose(DoubleArray(6))
+        try {
+            Thread.sleep(100)
+        } catch (e: InterruptedException) {
+            Timber.e(e)
+        }
+        benchmarkPosition = Vector3D(super.getCurrentPosition())
+        Timber.d("Reset the vslam camera pose, current position: ${getPosition()}")
         this.benchmarkAttitude = currentAttitude
     }
 
@@ -134,6 +152,11 @@ class DjiMotionTracker(
 
     override fun isMonitoring(): Boolean {
         return this.getTrackingState() == TrackingState.Tracking
+    }
+
+    override fun destroy() {
+        super.destroy()
+        processFrame.release()
     }
 
 }
