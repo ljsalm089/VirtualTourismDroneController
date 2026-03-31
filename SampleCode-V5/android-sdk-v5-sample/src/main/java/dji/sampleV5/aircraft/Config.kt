@@ -14,6 +14,7 @@ const val MAXIMUM_HORIZONTAL_VELOCITY = 0.2 // m/s
 // if use the mock control class to test the control data sent from the headset
 const val USE_MOCK_CONTROL = false
 
+const val ONLY_OBSERVE_POSITION_CHANGE = true
 
 // the interval between sending two 'Ping' packet to test the data latency
 const val PING_INTERVAL = 1000L

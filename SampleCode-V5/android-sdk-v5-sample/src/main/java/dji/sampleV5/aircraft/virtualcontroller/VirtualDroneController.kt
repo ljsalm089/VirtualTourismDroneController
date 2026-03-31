@@ -1,6 +1,7 @@
 package dji.sampleV5.aircraft.virtualcontroller
 
 import android.util.Log
+import dji.sampleV5.aircraft.ONLY_OBSERVE_POSITION_CHANGE
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.models.ControlStatusData
@@ -159,9 +160,11 @@ class VirtualDroneController(
 
     override suspend fun switchDroneStatus(isReady: Boolean) {
         if (isReady) {
-            if (changeVirtualStickStatus(true) /*&& resetGimbal()*/) {
-                VirtualStickManager.getInstance()
-                    .setVirtualStickAdvancedModeEnabled(true)
+            if (ONLY_OBSERVE_POSITION_CHANGE || changeVirtualStickStatus(true)) {
+                if (!ONLY_OBSERVE_POSITION_CHANGE) {
+                    VirtualStickManager.getInstance()
+                        .setVirtualStickAdvancedModeEnabled(true)
+                }
                 Timber.d("reset the position of the vslam")
                 positionMonitor.start()
                 super.switchDroneStatus(true)
@@ -190,6 +193,7 @@ class VirtualDroneController(
         val intervalInMillis = (1000 / SENDING_FREQUENCY).toLong()
         return scope.launch(Dispatchers.IO) {
             while (this.isActive) {
+                if (ONLY_OBSERVE_POSITION_CHANGE) delay(intervalInMillis)
                 if (positionMonitor.isMonitoring()) {
                     synchronizeDronePosture(intervalInMillis)
                     delay(intervalInMillis)
