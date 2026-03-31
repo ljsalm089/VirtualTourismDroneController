@@ -88,8 +88,6 @@ class DjiMotionTracker(
     }
 
     override fun invoke(p1: DJIKeyInfo<*>, p2: Any?) {
-        Timber.d("Received the callback from status monitoring: ${p1.identifier}, ${p1.innerIdentifier}, \t value: ${p2?.toString()}")
-        Timber.d("target identifier, gimbal: ${gimbalAttitudeKey.innerIdentifier}\tattitude: ${attitudeKey.innerIdentifier}")
         if (p1.innerIdentifier == gimbalAttitudeKey.innerIdentifier) {
             (p2 as? Attitude)?.let {
                 gimbalAttitude[0] = it.pitch

@@ -1,6 +1,5 @@
 package dji.sampleV5.aircraft.virtualcontroller
 
-import android.util.Log
 import dji.sampleV5.aircraft.ONLY_OBSERVE_POSITION_CHANGE
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
 import dji.sampleV5.aircraft.data.Vector3D
@@ -10,19 +9,11 @@ import dji.sampleV5.aircraft.utils.LogLevel
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toJson
 import dji.sdk.keyvalue.key.FlightControllerKey
-import dji.sdk.keyvalue.key.GimbalKey
 import dji.sdk.keyvalue.key.KeyTools
-import dji.sdk.keyvalue.value.common.Attitude
 import dji.sdk.keyvalue.value.flightcontroller.FlightCoordinateSystem
 import dji.sdk.keyvalue.value.flightcontroller.VirtualStickFlightControlParam
-import dji.v5.common.callback.CommonCallbacks
-import dji.v5.common.error.IDJIError
 import dji.v5.et.action
 import dji.v5.et.get
-import dji.v5.et.set
-import dji.v5.manager.aircraft.perception.PerceptionManager
-import dji.v5.manager.aircraft.perception.data.ObstacleAvoidanceType
-import dji.v5.manager.aircraft.perception.data.PerceptionDirection
 import dji.v5.manager.aircraft.virtualstick.VirtualStickManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
@@ -147,10 +137,14 @@ class VirtualDroneController(
 
     init {
         scope.launch(Dispatchers.IO) {
-            setObstacleAvoidanceWarningDistance(0.1)
-            setObstacleAvoidance(false)
+            delay(300)
+            setObstacleAvoidanceWarningDistance(0.1, messageNotifier)
+            setObstacleAvoidance(false, messageNotifier)
+            if (setGimbalMode(true, messageNotifier)) {
+                adjustCameraOrientation(0.0, 0.0, 40.0)
+            }
 
-            setHeightLimit(2)
+            setHeightLimit(2, messageNotifier)
         }
 
         droneParam = initDroneAdvancedParam()
@@ -160,7 +154,7 @@ class VirtualDroneController(
 
     override suspend fun switchDroneStatus(isReady: Boolean) {
         if (isReady) {
-            if (ONLY_OBSERVE_POSITION_CHANGE || changeVirtualStickStatus(true)) {
+            if (ONLY_OBSERVE_POSITION_CHANGE || changeVirtualStickStatus(true, messageNotifier)) {
                 if (!ONLY_OBSERVE_POSITION_CHANGE) {
                     VirtualStickManager.getInstance()
                         .setVirtualStickAdvancedModeEnabled(true)
@@ -184,7 +178,7 @@ class VirtualDroneController(
             // disable advanced virtual stick control
             VirtualStickManager.getInstance().setVirtualStickAdvancedModeEnabled(false)
             // disable virtual stick control
-            changeVirtualStickStatus(false)
+            changeVirtualStickStatus(false, messageNotifier)
             positionMonitor.stop()
         }
     }
@@ -193,7 +187,11 @@ class VirtualDroneController(
         val intervalInMillis = (1000 / SENDING_FREQUENCY).toLong()
         return scope.launch(Dispatchers.IO) {
             while (this.isActive) {
-                if (ONLY_OBSERVE_POSITION_CHANGE) delay(intervalInMillis)
+                if (ONLY_OBSERVE_POSITION_CHANGE) {
+                    delay(intervalInMillis)
+                    continue
+                }
+
                 if (positionMonitor.isMonitoring()) {
                     synchronizeDronePosture(intervalInMillis)
                     delay(intervalInMillis)
@@ -233,19 +231,22 @@ class VirtualDroneController(
         val xVelocity = xGap / intervalInMillis * 1000.0
         val yVelocity = yGap / intervalInMillis * 1000.0
 
-        val headVelocity = - xVelocity * sin(droneAttitudeInRadians) + zVelocity * cos(droneAttitudeInRadians)
-        val rightVelocity = xVelocity * cos(droneAttitudeInRadians) + zVelocity * sin(droneAttitudeInRadians)
+        val headVelocity =
+            -xVelocity * sin(droneAttitudeInRadians) + zVelocity * cos(droneAttitudeInRadians)
+        val rightVelocity =
+            xVelocity * cos(droneAttitudeInRadians) + zVelocity * sin(droneAttitudeInRadians)
 
-        val targetAttitude = if (shortestAngle(droneAttitudeInDegrees, targetRotation.y.toDouble()) >= 1.0) {
-            (positionMonitor as DjiMotionTracker).formatAttitude(targetRotation.y.toDouble())
-        } else {
-            null
-        }
+        val targetAttitude =
+            if (shortestAngle(droneAttitudeInDegrees, targetRotation.y.toDouble()) >= 1.0) {
+                (positionMonitor as DjiMotionTracker).formatAttitude(targetRotation.y.toDouble())
+            } else {
+                null
+            }
 
         adjustDroneVelocityOneTimeBodyBased(
             headVelocity,
             rightVelocity,
-            - yVelocity,
+            -yVelocity,
             targetAttitude
         )
 
@@ -334,18 +335,6 @@ class VirtualDroneController(
         })
     }
 
-    private suspend fun resetGimbal(): Boolean = suspendCancellableCoroutine { continuation ->
-        val attitude = Attitude(0.0, 0.0, 0.0)
-        KeyTools.createKey(GimbalKey.KeyGimbalAttitude).set(
-            attitude, {
-                Timber.d("Reset the gimbal successfully")
-                continuation.resume(true)
-            }, {
-                Timber.d("Failed to reset the gimbal: ${it.description()}")
-                continuation.resume(false)
-            }
-        )
-    }
 
     override suspend fun abort() {
         switchDroneStatus(false)
@@ -360,7 +349,7 @@ class VirtualDroneController(
         if (setObstacleAvoidance(true)) {
             setObstacleAvoidanceWarningDistance(4.0)
         }
-
+        setGimbalMode(false)
         VirtualStickManager.getInstance().setVirtualStickAdvancedModeEnabled(false)
         changeVirtualStickStatus(false)
     }
@@ -369,105 +358,4 @@ class VirtualDroneController(
 
     }
 
-    private suspend fun setObstacleAvoidanceWarningDistance(distance: Double): Boolean =
-        suspendCancellableCoroutine { continuation ->
-            // only callback after three settings are successful, or one of them is fail
-            val callback = object : CommonCallbacks.CompletionCallback {
-                val callbackCount = AtomicInteger(0)
-
-                override fun onSuccess() {
-                    if (callbackCount.incrementAndGet() == 3
-                        && !continuation.isCompleted
-                        && continuation.isActive
-                        && !continuation.isCancelled
-                    ) {
-                        continuation.resume(true)
-                    }
-                }
-
-                override fun onFailure(p0: IDJIError) {
-                    if (!continuation.isCompleted && continuation.isActive && !continuation.isCancelled) {
-                        continuation.resume(false)
-                    }
-                }
-
-            }
-
-            listOf(
-                PerceptionDirection.HORIZONTAL,
-                PerceptionDirection.DOWNWARD,
-                PerceptionDirection.UPWARD
-            ).forEach { direction ->
-                PerceptionManager.getInstance().setObstacleAvoidanceWarningDistance(
-                    distance,
-                    direction,
-                    callback
-                )
-            }
-        }
-
-    private suspend fun setObstacleAvoidance(enable: Boolean): Boolean =
-        suspendCancellableCoroutine { continuation ->
-            // right here, can use the `setObstacleAvoidanceEnabled` to enable/disable obstacle avoidance in three directions,
-            // because the mini 3 pro does not support this kind of operation
-            PerceptionManager.getInstance().setObstacleAvoidanceType(
-                if (enable) ObstacleAvoidanceType.BYPASS else ObstacleAvoidanceType.CLOSE,
-                object : CommonCallbacks.CompletionCallback {
-                    override fun onSuccess() {
-                        messageNotifier?.invoke(
-                            Log.DEBUG,
-                            "${if (enable) "Enable" else "Disable"} obstacle avoidance successfully",
-                            null
-                        )
-                        continuation.resume(true)
-                    }
-
-                    override fun onFailure(p0: IDJIError) {
-                        messageNotifier?.invoke(
-                            Log.ERROR,
-                            "${if (enable) "Enable" else "Disable"} obstacle avoidance failed (${p0.errorCode()}): ${p0.hint()}",
-                            null
-                        )
-                        continuation.resume(false)
-                    }
-                })
-        }
-
-    private suspend fun setHeightLimit(limit: Int): Boolean =
-        suspendCancellableCoroutine { continuation ->
-            // set maximum height the drone can fly
-            KeyTools.createKey(FlightControllerKey.KeyHeightLimit).set(limit, {
-                messageNotifier?.invoke(
-                    Log.DEBUG,
-                    "Set the maximum height of drone successfully",
-                    null
-                )
-                continuation.resume(true)
-            }, {
-                messageNotifier?.invoke(
-                    Log.ERROR,
-                    "Failed to set maximum height of drone (${it.errorCode()}): ${it.hint()}",
-                    null
-                )
-                continuation.resume(false)
-            })
-        }
-
-    private suspend fun changeVirtualStickStatus(enable: Boolean): Boolean =
-        suspendCancellableCoroutine { continuation ->
-            val callback = object : CommonCallbacks.CompletionCallback {
-                override fun onSuccess() {
-                    continuation.resume(true)
-                }
-
-                override fun onFailure(p0: IDJIError) {
-                    continuation.resume(false)
-                }
-            }
-            if (enable) {
-                VirtualStickManager.getInstance().enableVirtualStick(callback)
-            } else {
-                VirtualStickManager.getInstance().disableVirtualStick(callback)
-            }
-        }
 }
