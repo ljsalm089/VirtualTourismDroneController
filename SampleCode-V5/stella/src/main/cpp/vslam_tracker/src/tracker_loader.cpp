@@ -300,7 +300,7 @@ static JNINativeMethod methods[] = {
 jint bind_methods_for_tracker(JNIEnv *env) {
     D(TAG, "bind methods for tracker");
     jint result = JNI_OK;
-    jclass tracker_clazz = env->FindClass("org/jason/testapp/android/stella/tracker/VSLamTracker");
+    jclass tracker_clazz = env->FindClass("org/jason/testapp/android/stella/tracker/VSlamTracker");
     auto logger = spdlog::android_logger_mt(TAG);
 
     if (tracker_clazz == nullptr) {

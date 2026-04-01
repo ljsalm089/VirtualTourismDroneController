@@ -7,6 +7,7 @@
 
 #include "jni.h"
 #include "tracker_loader.hpp"
+#include "marker_tracker_loader.h"
 
 #include "native_trace.h"
 
@@ -58,8 +59,20 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
         goto _unbind_methods;
     } else {
         result = JNI_VERSION_1_6;
+    }
+
+    TRACE_BEGIN("bind_method_for_marker_tracker");
+    result = bind_methods_for_marker_tracker(env);
+    TRACE_END();
+    if (JNI_OK != result) {
+        goto _unbind_vslam_tracker_methods;
+    } else {
+        result = JNI_VERSION_1_6;
         goto _return;
     }
+
+    _unbind_vslam_tracker_methods:
+    unbind_methods_for_tracker(env);
 
     _unbind_methods:
     env->UnregisterNatives(native_class);
@@ -73,5 +86,6 @@ JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved) {
     JNIEnv *env;
     if (JNI_OK == vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6)) {
         unbind_methods_for_tracker(env);
+        unbind_methods_for_marker_tracker(env);
     }
 }

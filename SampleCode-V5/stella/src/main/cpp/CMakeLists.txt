@@ -128,6 +128,8 @@ add_subdirectory(stella_vslam)
 # load tracker module
 add_subdirectory(vslam_tracker)
 
+add_subdirectory(marker_tracker)
+
 add_library(native-lib SHARED
     native-lib.cpp
 )
@@ -156,6 +158,7 @@ target_link_libraries(native-lib PUBLIC
     g2o::solver_csparse
     g2o::csparse_extension
     vslam_tracker
+    marker_tracker
     ${OpenCV_LIBRARIES}
     ${log-lib}
 )
