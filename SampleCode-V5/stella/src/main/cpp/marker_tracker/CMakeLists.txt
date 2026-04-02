@@ -5,7 +5,7 @@ file(GLOB_RECURSE MARKER_TRACKER_SRC_FILES
     "src/*.c"
 )
 
-message("list all the files in src for marker traker: ${MARKER_TRACKER_SRC_FILES}")
+message("list all the files in src for marker tracker: ${MARKER_TRACKER_SRC_FILES}")
 
 project(marker_tracker)
 
@@ -20,6 +20,8 @@ target_include_directories(marker_tracker PUBLIC
 )
 
 target_link_libraries(marker_tracker PRIVATE
+    spdlog::spdlog
     native_trace
     opencv_core
+    yaml-cpp
 )

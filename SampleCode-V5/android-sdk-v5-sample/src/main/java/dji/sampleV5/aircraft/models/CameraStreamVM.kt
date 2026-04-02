@@ -20,7 +20,7 @@ import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.media.DronePhotoCapturer
-import dji.sampleV5.aircraft.motiontracking.DjiMotionTracker
+import dji.sampleV5.aircraft.motiontracking.DjiVSLamTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
 import dji.sampleV5.aircraft.utils.toJson
@@ -149,7 +149,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     private var statusMonitor: DroneStatusMonitor? = null
 
-    private var motionTracker: DjiMotionTracker? = null
+    private var motionTracker: DjiVSLamTracker? = null
 
     private var droneController: IDroneController? = null
 
@@ -254,7 +254,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
         if (null == motionTracker) {
             // TODO initialize the tracker first, the target size need to be adjusted based on the real resolution of the video
-            motionTracker = DjiMotionTracker(
+            motionTracker = DjiVSLamTracker(
                 TARGET_VIDEO_FRAME_SIZE,
                 statusMonitor!!,
                 Dispatchers.IO, viewModelScope

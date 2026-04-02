@@ -1,0 +1,20 @@
+Camera:
+  name: "pixel 6 monocular"
+  setup: "monocular"
+  model: "perspective"
+
+  intrinsic: [ 450.873664825, 0., 450.873664825,
+               0., 319.833333333, 179.833333333,
+               0., 0., 1. ]
+
+  distortion: [ 0.062532552180625631, -0.19621469965929109, 0.0, 0.0, 0.24968630863302968 ]
+
+  fps: 30.0
+  cols: 640
+  rows: 360
+
+
+Markers:
+  - id: 1
+    position: [ 0.0, 0.0, 0.0 ]
+    rotation: [ 0.0, 0.0, 0.0 ]

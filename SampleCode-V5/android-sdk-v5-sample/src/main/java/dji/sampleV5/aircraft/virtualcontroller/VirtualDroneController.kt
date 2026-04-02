@@ -7,7 +7,7 @@ import dji.sampleV5.aircraft.SENDING_FREQUENCY
 import dji.sampleV5.aircraft.TARGET_FOCUS_RING_VALUE
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.models.ControlStatusData
-import dji.sampleV5.aircraft.motiontracking.DjiMotionTracker
+import dji.sampleV5.aircraft.motiontracking.DjiVSLamTracker
 import dji.sampleV5.aircraft.utils.LogLevel
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toJson
@@ -244,7 +244,7 @@ class VirtualDroneController(
 
         val targetAttitude =
             if (shortestAngle(droneAttitudeInDegrees, targetRotation.y.toDouble()) >= 1.0) {
-                (positionMonitor as DjiMotionTracker).formatAttitude(targetRotation.y.toDouble())
+                (positionMonitor as DjiVSLamTracker).formatAttitude(targetRotation.y.toDouble())
             } else {
                 null
             }

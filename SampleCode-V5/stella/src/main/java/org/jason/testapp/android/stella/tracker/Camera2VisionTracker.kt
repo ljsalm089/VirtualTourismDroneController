@@ -6,7 +6,7 @@ import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
 
 class Camera2VisionTracker (val targetSize: Size, val drawPoints: Boolean) :
-    VSLamTracker<CameraBridgeViewBase.CvCameraViewFrame, Mat>() {
+    VSlamTracker<CameraBridgeViewBase.CvCameraViewFrame, Mat>() {
 
     private val resizedMat = Mat()
 

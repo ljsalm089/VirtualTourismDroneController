@@ -1,8 +1,5 @@
 package org.jason.testapp.android.stella.tracker
 
-import androidx.annotation.CallSuper
-import org.opencv.core.Mat
-
 enum class TrackingState(val value: Int) {
     Initializing(0),
     Tracking(1),
@@ -21,82 +18,19 @@ enum class TrackingState(val value: Int) {
     }
 }
 
-abstract class VSLamTracker<I, O> {
+interface IMotionTracker<I, O> {
 
+    fun feedFrame(input: I): O?
 
-    protected var trackerPtr: Long = 0L
+    fun getTrackingState(): TrackingState
 
-    @CallSuper
-    open fun initialize(configFilePath: String, vocabularyFilePath: String): Boolean {
-        if (0L != trackerPtr) {
-            destroy()
-        }
+    fun getCurrentPosition(): DoubleArray
 
-        trackerPtr = createNativeTracker(configFilePath, vocabularyFilePath)
-        return 0L != trackerPtr
-    }
+    fun getCurrentRotation(): DoubleArray
 
-    abstract fun feedFrame(frame: I): O?
+    fun startup()
 
-    protected fun processFrame(frame: Mat) {
-        nativeProcessFrame(trackerPtr, frame.nativeObj)
-    }
+    fun shutdown()
 
-    protected fun getProcessedFrame(): Mat {
-        return Mat(nativeGetProcessedFrame(trackerPtr))
-    }
-
-    protected external fun nativeGetProcessedFrame(trackerPtr: Long): Long
-
-    protected external fun relocalizeCameraPose(newPose: DoubleArray): Boolean
-
-    fun getTrackingState(): TrackingState {
-        return TrackingState.from(nativeTrackingState(trackerPtr))
-    }
-
-    @CallSuper
-    open fun getCurrentPosition(): DoubleArray {
-        return getPositionAndRotation().slice(IntRange(0, 2)).toDoubleArray()
-    }
-
-    @CallSuper
-    open fun getCurrentRotation(): DoubleArray {
-        return getPositionAndRotation().slice(IntRange(3, 5)).toDoubleArray()
-    }
-
-    external fun saveMapDatabase(dbFilepath: String): Boolean
-
-    external fun loadMapDatabase(dbFilePath: String): Boolean
-
-    external fun isMappingModuleEnabled(): Boolean
-
-    external fun setMappingModule(enabled: Boolean)
-
-    external fun isLoopDetectorEnabled(): Boolean
-
-    external fun setLoopDetector(enabled: Boolean)
-
-    @CallSuper
-    open external fun startup()
-
-    @CallSuper
-    open external fun shutdown()
-
-    @CallSuper
-    open external fun destroy()
-
-    private fun getTracker(): Long {
-        return trackerPtr
-    }
-
-    private external fun nativeProcessFrame(trackerPtr: Long, framePtr: Long)
-
-    private external fun nativeTrackingState(trackerPtr: Long): Int
-
-    private external fun createNativeTracker(
-        configFilePath: String,
-        vocabularyFilePath: String
-    ): Long
-
-    private external fun getPositionAndRotation(): DoubleArray
+    fun destroy()
 }

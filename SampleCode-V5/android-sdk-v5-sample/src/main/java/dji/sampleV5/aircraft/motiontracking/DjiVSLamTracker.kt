@@ -17,20 +17,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import org.jason.testapp.android.stella.tracker.TrackingState
-import org.jason.testapp.android.stella.tracker.VSLamTracker
+import org.jason.testapp.android.stella.tracker.VSlamTracker
 import org.opencv.core.CvType
 import org.opencv.core.Mat
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
 import timber.log.Timber
 
-class DjiMotionTracker(
+class DjiVSLamTracker(
     val targetSize: Size,
     val rawDataObservable: RawDataObservable,
     ioDispatcher: CoroutineDispatcher,
     val scope: CoroutineScope
 ) :
-    VSLamTracker<VideoFrame, Unit>(), VideoFrameListener, IPositionMonitor, OnRawDataObserver {
+    VSlamTracker<VideoFrame, Unit>(), VideoFrameListener, IPositionMonitor, OnRawDataObserver {
 
     private val dispatcher = ioDispatcher.limitedParallelism(1, "motion tracking dispatcher")
 
