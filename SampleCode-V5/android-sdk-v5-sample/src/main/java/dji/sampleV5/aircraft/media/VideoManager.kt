@@ -59,11 +59,13 @@ class VideoManager private constructor(val scope: CoroutineScope, dispatcher: Co
         scope.launch(dispatching) {
             val frame = VideoFrame(frameData, length - offset, width, height, format.value)
             frame.reference()
-
-            for (listener in subscribers) {
-                listener.onVideoFrame(frame)
+            try {
+                for (listener in subscribers) {
+                    listener.onVideoFrame(frame)
+                }
+            } finally {
+                frame.release()
             }
-            frame.release()
         }
     }
 

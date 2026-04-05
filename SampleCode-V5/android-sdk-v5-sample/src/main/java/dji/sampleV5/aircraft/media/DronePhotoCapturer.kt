@@ -41,9 +41,12 @@ class DronePhotoCapturer(
         deferred?.let {
             frame.reference()
             scope.launch(dispatcher) {
-                val fileName = saveFrameToImage(frame)
-                it.complete(fileName)
-                frame.release()
+                try {
+                    val fileName = saveFrameToImage(frame)
+                    it.complete(fileName)
+                } finally {
+                    frame.release()
+                }
             }
         }
         deferred = null

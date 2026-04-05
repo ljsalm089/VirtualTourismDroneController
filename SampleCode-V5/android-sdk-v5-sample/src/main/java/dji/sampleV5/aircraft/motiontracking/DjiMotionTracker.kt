@@ -75,15 +75,18 @@ class DjiMotionTracker(
         frame.reference()
 
         scope.launch(dispatcher) {
-            val grayBuffer = frame.buffer.slice(0, frame.width * frame.height)
-            val tmpMat = Mat(frame.height, frame.width, CvType.CV_8UC1, grayBuffer)
+            try {
+                val grayBuffer = frame.buffer.slice(0, frame.width * frame.height)
+                val tmpMat = Mat(frame.height, frame.width, CvType.CV_8UC1, grayBuffer)
 
-            Imgproc.resize(tmpMat, processFrame, targetSize)
+                Imgproc.resize(tmpMat, processFrame, targetSize)
 
-            processFrame(processFrame)
+                processFrame(processFrame)
 
-            tmpMat.release()
-            frame.release()
+                tmpMat.release()
+            } finally {
+                frame.release()
+            }
         }
     }
 

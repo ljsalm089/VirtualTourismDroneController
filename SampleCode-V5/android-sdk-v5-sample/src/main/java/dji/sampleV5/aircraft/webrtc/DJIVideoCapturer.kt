@@ -110,6 +110,7 @@ class DJIVideoCapturer(private val scope: CoroutineScope) : VideoCapturer {
     ) {
         scope.launch(Dispatchers.IO) {
             if (isDisposed || !isCapturing) {
+                frame.release()
                 return@launch
             }
 
@@ -145,9 +146,10 @@ class DJIVideoCapturer(private val scope: CoroutineScope) : VideoCapturer {
                     VideoFrame(yuv420Buffer, 0, videoTimeStampInNanoSeconds)
                 capturerObserver.onFrameCaptured(videoFrame)
 
-                frame.release()
             } catch (e: Exception) {
                 Timber.e(e, "Failed to draw frame/set videoFrame")
+            } finally {
+                frame.release()
             }
         }
     }
