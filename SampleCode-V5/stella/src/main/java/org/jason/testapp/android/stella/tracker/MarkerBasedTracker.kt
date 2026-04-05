@@ -1,24 +1,21 @@
 package org.jason.testapp.android.stella.tracker
 
+import org.opencv.core.Mat
+
 abstract class MarkerBasedTracker<I, O> : IMotionTracker<I, O> {
 
     private var trackerPtr: Long = 0L
 
     fun initialize(configurationFile: String): Boolean {
         if (0L == trackerPtr) {
-            trackerPtr = createNativeObject()
+            trackerPtr = createNativeObject(configurationFile)
         }
 
-        if (!nativeInitialize(configurationFile)) {
-            destroy()
-            trackerPtr = 0L
-            return false
-        }
-        return true
+        return 0L != trackerPtr
     }
 
-    override fun feedFrame(input: I): O? {
-        TODO("Not yet implemented")
+    protected fun feedFrame(input: Mat): Boolean {
+        return nativeProcessFrame(trackerPtr, input.nativeObj)
     }
 
     override fun getTrackingState(): TrackingState {
@@ -35,11 +32,10 @@ abstract class MarkerBasedTracker<I, O> : IMotionTracker<I, O> {
 
     external override fun destroy()
 
-    private external fun createNativeObject(): Long
+    private external fun createNativeObject(configFile: String): Long
 
     protected external fun nativeProcessFrame(trackerPtr: Long, framePtr: Long): Boolean
 
     private external fun nativeTrackingState(): Int
 
-    private external fun nativeInitialize(filePath: String): Boolean
 }

@@ -1,6 +1,5 @@
 package dji.sampleV5.aircraft.models
 
-import android.Manifest
 import android.app.Application
 import android.os.SystemClock
 import android.util.ArrayMap
@@ -20,6 +19,7 @@ import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.media.DronePhotoCapturer
+import dji.sampleV5.aircraft.motiontracking.DjiMarkerTracker
 import dji.sampleV5.aircraft.motiontracking.DjiVSLamTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
@@ -84,12 +84,6 @@ import java.util.Locale
 import java.util.concurrent.Executors
 
 
-private val permissions = listOf(
-    Manifest.permission.CAMERA,
-    Manifest.permission.RECORD_AUDIO,
-    Manifest.permission.ACCESS_NETWORK_STATE
-)
-
 data class VideoTrackAdded(
     val eglBase: EglBase,
     val videoTrack: VideoTrack,
@@ -150,6 +144,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     private var statusMonitor: DroneStatusMonitor? = null
 
     private var motionTracker: DjiVSLamTracker? = null
+
+    private var markerTracker: DjiMarkerTracker? = null
 
     private var droneController: IDroneController? = null
 
@@ -227,6 +223,28 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     )
                 )
             }
+
+            markerTracker?.let { tracker ->
+                val position = tracker.getCurrentPosition()
+                val rotation = tracker.getCurrentRotation()
+                val state = tracker.getTrackingState().toString()
+
+                emitMonitorStatus(
+                    mapOf(
+                        R.string.hint_drone_current_position_marker.idToString() to "${position[0].format()} / ${position[1].format()} / ${position[2].format()}",
+                        R.string.hint_drone_current_rotation_marker.idToString() to "${rotation[0].format()} / ${rotation[1].format()} / ${rotation[2].format()}",
+                        R.string.hint_drone_tracking_state_marker.idToString() to state
+                    )
+                )
+            } ?: run {
+                emitMonitorStatus(
+                    mapOf(
+                        R.string.hint_drone_current_position_marker.idToString() to "-/-/-",
+                        R.string.hint_drone_current_rotation_marker.idToString() to "-/-/-",
+                        R.string.hint_drone_tracking_state_marker.idToString() to "-"
+                    )
+                )
+            }
         }
         statusMonitor?.startMonitoring()
 
@@ -253,6 +271,13 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         webRtcManager.start()
 
         if (null == motionTracker) {
+            markerTracker = DjiMarkerTracker(TARGET_VIDEO_FRAME_SIZE, Dispatchers.IO, viewModelScope)
+            val markerTrackerConfigFile = File(application.filesDir, "marker_tracker.yaml")
+            if (!markerTrackerConfigFile.exists()) {
+                copyFileFromRaw("marker_tracker.yaml", markerTrackerConfigFile.absolutePath)
+            }
+            markerTracker?.initialize(markerTrackerConfigFile.absolutePath)
+
             // TODO initialize the tracker first, the target size need to be adjusted based on the real resolution of the video
             motionTracker = DjiVSLamTracker(
                 TARGET_VIDEO_FRAME_SIZE,
@@ -276,6 +301,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         motionTracker?.startup()
         motionTracker?.setMappingModule(true)
 
+        markerTracker?.startup()
+
         photoCapturer.startup()
 
         isVideoPublish.postValue(true)
@@ -289,6 +316,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         motionTracker?.shutdown()
         motionTracker?.destroy()
         motionTracker = null
+
+        markerTracker?.shutdown()
+        markerTracker?.destroy()
+        markerTracker = null
 
         audioSource?.dispose()
         videoCapturer?.stopCapture()

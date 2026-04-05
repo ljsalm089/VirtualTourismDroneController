@@ -22,6 +22,7 @@ target_include_directories(marker_tracker PUBLIC
 target_link_libraries(marker_tracker PRIVATE
     spdlog::spdlog
     native_trace
-    opencv_core
     yaml-cpp
+    opencv_aruco
+    opencv_core
 )

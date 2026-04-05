@@ -37,34 +37,34 @@ typedef struct _Tracker {
 
 } Tracker;
 
-Tracker * obtain_tracker_struct(jlong tracker_struct_ptr) {
+static Tracker * obtain_tracker_struct(jlong tracker_struct_ptr) {
     return reinterpret_cast<Tracker *>(tracker_struct_ptr);
 }
 
-Tracker * obtain_tracker_struct(JNIEnv*env, jobject thiz) {
+static Tracker * obtain_tracker_struct(JNIEnv*env, jobject thiz) {
     jlong ptr = env->CallLongMethod(thiz, context.tracker_ptr);
     return obtain_tracker_struct(ptr);
 }
 
-stella_vslam::system *obtain_tracker(jlong tracker_ptr) {
+static stella_vslam::system *obtain_tracker(jlong tracker_ptr) {
     return obtain_tracker_struct(tracker_ptr)->tracker;
 }
 
-stella_vslam::system *obtain_tracker(JNIEnv *env, jobject thiz) {
+static stella_vslam::system *obtain_tracker(JNIEnv *env, jobject thiz) {
     jlong ptr = env->CallLongMethod(thiz, context.tracker_ptr);
     return obtain_tracker(ptr);
 }
 
-stella_vslam::config *obtain_config(JNIEnv *env, jobject thiz) {
+static stella_vslam::config *obtain_config(JNIEnv *env, jobject thiz) {
     return obtain_tracker_struct(env, thiz)->config.get();
 }
 
-stella_vslam::config * create_config_tracker(JNIEnv *env, jobject thiz, jstring config_path) {
+static stella_vslam::config * create_config_tracker(JNIEnv *env, jobject thiz, jstring config_path) {
     auto config_path_str = std::string(env->GetStringUTFChars(config_path, nullptr));
     return new stella_vslam::config(config_path_str);
 }
 
-jlong create_native_tracker(JNIEnv *env, jobject thiz, jstring config_file_path, jstring vocabulary_file_path) {
+static jlong create_native_tracker(JNIEnv *env, jobject thiz, jstring config_file_path, jstring vocabulary_file_path) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     stella_vslam::config * config = nullptr;
@@ -100,7 +100,7 @@ jlong create_native_tracker(JNIEnv *env, jobject thiz, jstring config_file_path,
     return reinterpret_cast<jlong>(tracker_struct);
 }
 
-void destroy(JNIEnv *env, jobject thiz) {
+static void destroy(JNIEnv *env, jobject thiz) {
     auto tracker_struct = obtain_tracker_struct(env, thiz);
     auto config = tracker_struct->config.get();
     delete config;
@@ -111,26 +111,26 @@ void destroy(JNIEnv *env, jobject thiz) {
     delete tracker_struct;
 }
 
-jboolean save_map_database(JNIEnv *env, jobject thiz, jstring db_path) {
+static jboolean save_map_database(JNIEnv *env, jobject thiz, jstring db_path) {
     auto tracker = obtain_tracker(env, thiz);
     auto db_file_path = std::string(env->GetStringUTFChars(db_path, nullptr));
 
     return tracker->save_map_database(db_file_path) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean load_map_database(JNIEnv *env, jobject thiz, jstring db_path) {
+static jboolean load_map_database(JNIEnv *env, jobject thiz, jstring db_path) {
     auto tracker = obtain_tracker(env, thiz);
     auto db_file_path = std::string(env->GetStringUTFChars(db_path, nullptr));
 
     return tracker->load_map_database(db_file_path) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean is_mapping_module_enabled(JNIEnv *env, jobject thiz) {
+static jboolean is_mapping_module_enabled(JNIEnv *env, jobject thiz) {
     auto tracker = obtain_tracker(env, thiz);
     return tracker->mapping_module_is_enabled() ? JNI_TRUE : JNI_FALSE;
 }
 
-void set_mapping_module(JNIEnv *env, jobject thiz, jboolean enabled) {
+static void set_mapping_module(JNIEnv *env, jobject thiz, jboolean enabled) {
     auto tracker = obtain_tracker(env, thiz);
     if (enabled) {
         tracker->enable_mapping_module();
@@ -139,12 +139,12 @@ void set_mapping_module(JNIEnv *env, jobject thiz, jboolean enabled) {
     }
 }
 
-jboolean is_loop_detector_enabled(JNIEnv *env, jobject thiz) {
+static jboolean is_loop_detector_enabled(JNIEnv *env, jobject thiz) {
     auto tracker_ptr = obtain_tracker(env, thiz);
     return tracker_ptr->loop_detector_is_enabled();
 }
 
-void set_loop_detector(JNIEnv *env, jobject thiz, jboolean enabled) {
+static void set_loop_detector(JNIEnv *env, jobject thiz, jboolean enabled) {
     auto tracker_ptr = obtain_tracker(env, thiz);
     if (enabled) {
         tracker_ptr->enable_loop_detector();
@@ -153,7 +153,7 @@ void set_loop_detector(JNIEnv *env, jobject thiz, jboolean enabled) {
     }
 }
 
-void process_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr, jlong frame_ptr) {
+static void process_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr, jlong frame_ptr) {
     TRACE_FUNC_WITH_NAME("native_process_frame");
     auto track_struct = obtain_tracker_struct(tracker_ptr);
     auto tracker = track_struct->tracker;
@@ -173,7 +173,7 @@ void process_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr, jlong frame_ptr
     tracker->feed_monocular_frame(*frame, timestamp_sec);
 }
 
-jlong obtain_processed_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr) {
+static jlong obtain_processed_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr) {
     auto tracker_struct = obtain_tracker_struct(tracker_ptr);
     auto tracker = tracker_struct->tracker;
     auto frame_publisher = tracker->get_frame_publisher().get();
@@ -181,7 +181,7 @@ jlong obtain_processed_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr) {
     return reinterpret_cast<jlong>(&tracker_struct->processed_frame);
 }
 
-jboolean relocalize_camera_pose(JNIEnv *env, jobject thiz, jdoubleArray new_pose) {
+static jboolean relocalize_camera_pose(JNIEnv *env, jobject thiz, jdoubleArray new_pose) {
     auto tracker_ptr = obtain_tracker(env, thiz);
     if (!tracker_ptr) {
         return JNI_FALSE;
@@ -213,19 +213,19 @@ jboolean relocalize_camera_pose(JNIEnv *env, jobject thiz, jdoubleArray new_pose
     return tracker_ptr->relocalize_by_pose(cam_pose_wc) ? JNI_TRUE : JNI_FALSE;
 }
 
-void startup(JNIEnv *env, jobject thiz) {
+static void startup(JNIEnv *env, jobject thiz) {
     D(TAG, "start up the tracking system\n");
     auto tracker_ptr = obtain_tracker(env, thiz);
     tracker_ptr->startup();
 }
 
-void shutdown(JNIEnv *env, jobject thiz) {
+static void shutdown(JNIEnv *env, jobject thiz) {
     D(TAG, "shutdown the tracking system\n");
     auto tracker_ptr = obtain_tracker(env, thiz);
     tracker_ptr->shutdown();
 }
 
-jdoubleArray get_current_position_rotation(JNIEnv *env, jobject thiz) {
+static jdoubleArray get_current_position_rotation(JNIEnv *env, jobject thiz) {
 //    D(TAG, "get current position and rotation from the tracking system\n");
     auto tracker_ptr = obtain_tracker(env, thiz);
     if (!tracker_ptr) {
@@ -269,7 +269,7 @@ jdoubleArray get_current_position_rotation(JNIEnv *env, jobject thiz) {
     return result;
 }
 
-jint get_tracking_state(JNIEnv *env, jobject thiz, jlong ptr) {
+static jint get_tracking_state(JNIEnv *env, jobject thiz, jlong ptr) {
 //    D(TAG, "get tracking state of the tracking system\n");
     spdlog::debug("get tracking state of the tracking system\n");
     auto tracker_ptr = obtain_tracker(ptr);

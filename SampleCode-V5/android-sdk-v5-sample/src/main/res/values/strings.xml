@@ -535,4 +535,8 @@ More refer to the release notes." </string>
     <string name="hint_gimbal_attitude">Gimbal Attitude (Y/R/P)</string>
     <string name="hint_camera_focus_value">Camera Focus Value</string>
 
+    <string name="hint_drone_current_position_marker">Drone Current Position (Marker Based, x/y/z)</string>
+    <string name="hint_drone_current_rotation_marker">Drone Current Rotation (Marker Based, Y/R/P)</string>
+    <string name="hint_drone_tracking_state_marker">Drone Tracking State (Marker Based)</string>
+
 </resources>

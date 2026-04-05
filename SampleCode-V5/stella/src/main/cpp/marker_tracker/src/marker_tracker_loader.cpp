@@ -16,22 +16,23 @@ typedef struct context_struct {
 static Context context;
 
 
-tracker::MarkerTracker * obtain_native_tracker(jlong tracker_ptr) {
+static tracker::MarkerTracker * obtain_native_tracker(jlong tracker_ptr) {
     return reinterpret_cast<tracker::MarkerTracker *>(tracker_ptr);
 }
 
-tracker::MarkerTracker * obtain_native_tracker(JNIEnv *env, jobject thiz) {
+static tracker::MarkerTracker * obtain_native_tracker(JNIEnv *env, jobject thiz) {
     jlong ptr = env->GetLongField(thiz, context.native_object_ptr);
     return obtain_native_tracker(ptr);
 }
 
 
-jlong create_native_object(JNIEnv *env, jobject thiz) {
-    auto tracker = new tracker::MarkerTracker();
+static jlong create_native_object(JNIEnv *env, jobject thiz, jstring file_path) {
+    auto config = new tracker::Config(std::string(env->GetStringUTFChars(file_path, JNI_FALSE)));
+    auto tracker = new tracker::MarkerTracker(std::make_shared<tracker::Config>(* config));
     return reinterpret_cast<jlong>(tracker);
 }
 
-jboolean native_process_video_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr, jlong frame_ptr) {
+static jboolean native_process_video_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr, jlong frame_ptr) {
     auto tracker = obtain_native_tracker(tracker_ptr);
     auto frame = reinterpret_cast<cv::Mat *>(frame_ptr);
     if (tracker && frame) {
@@ -40,21 +41,21 @@ jboolean native_process_video_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr
     return false;
 }
 
-void startup(JNIEnv *env, jobject thiz) {
+static void startup(JNIEnv *env, jobject thiz) {
     auto tracker = obtain_native_tracker(env, thiz);
     if (tracker) {
         tracker->startup();
     }
 }
 
-void shutdown(JNIEnv *env, jobject thiz) {
+static void shutdown(JNIEnv *env, jobject thiz) {
     auto tracker = obtain_native_tracker(env, thiz);
     if (tracker) {
         tracker->shutdown();
     }
 }
 
-void destroy(JNIEnv *env, jobject thiz) {
+static void destroy(JNIEnv *env, jobject thiz) {
     auto tracker = obtain_native_tracker(env, thiz);
     if (tracker) {
         delete tracker;
@@ -62,17 +63,7 @@ void destroy(JNIEnv *env, jobject thiz) {
     }
 }
 
-jboolean initialize(JNIEnv *env, jobject thiz, jstring file_path) {
-    auto tracker = obtain_native_tracker(env, thiz);
-    if (tracker) {
-        auto file_path_string = std::string(env->GetStringUTFChars(file_path, JNI_FALSE));
-
-        return tracker->initialize(file_path_string);
-    }
-    return JNI_FALSE;
-}
-
-jdoubleArray get_current_position(JNIEnv *env, jobject thiz) {
+static jdoubleArray get_current_position(JNIEnv *env, jobject thiz) {
     auto tracker = obtain_native_tracker(env, thiz);
     if (tracker == nullptr) return nullptr;
     auto position = tracker->get_position();
@@ -83,7 +74,7 @@ jdoubleArray get_current_position(JNIEnv *env, jobject thiz) {
     return position_array;
 }
 
-jdoubleArray get_current_rotation(JNIEnv *env, jobject thiz) {
+static jdoubleArray get_current_rotation(JNIEnv *env, jobject thiz) {
     auto tracker = obtain_native_tracker(env, thiz);
     if (tracker == nullptr) return nullptr;
     auto rotation = tracker->get_rotation();
@@ -94,7 +85,7 @@ jdoubleArray get_current_rotation(JNIEnv *env, jobject thiz) {
     return rotation_array;
 }
 
-jint get_tracking_state(JNIEnv *env, jobject thiz) {
+static jint get_tracking_state(JNIEnv *env, jobject thiz) {
     auto tracker = obtain_native_tracker(env, thiz);
     if (tracker == nullptr) return -1;
     return static_cast<jint>(tracker->get_tracking_state());
@@ -102,7 +93,7 @@ jint get_tracking_state(JNIEnv *env, jobject thiz) {
 
 
 static JNINativeMethod methods[] = {
-        {"createNativeObject", "()J", (void *) create_native_object},
+        {"createNativeObject", "(Ljava/lang/String;)J", (void *) create_native_object},
         {"nativeProcessFrame", "(JJ)Z", (void *) native_process_video_frame},
         {"getCurrentPosition", "()[D", (void *) get_current_position},
         {"getCurrentRotation", "()[D", (void *) get_current_rotation},

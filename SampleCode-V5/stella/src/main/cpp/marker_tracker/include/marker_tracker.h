@@ -10,6 +10,8 @@
 
 #include "yaml-cpp/yaml.h"
 
+#include <map>
+
 namespace tracker {
 
     enum TrackingState {
@@ -22,22 +24,34 @@ namespace tracker {
     class Config {
     public:
         Config(const std::string & config_file_path);
+        ~Config();
 
         cv::Mat& get_camera_matrix();
 
         cv::Mat& get_camera_distort();
 
+        std::map<int, std::pair<std::vector<double>, std::vector<double>>>& get_markers();
+
+        cv::aruco::Dictionary& get_dictionary();
+
+        cv::aruco::DetectorParameters& get_detector_params();
+
+        float get_marker_length();
+
     private:
         const YAML::Node config_node;
 
-        cv::Mat * camera_matrix = nullptr;
-        cv::Mat * camera_distort = nullptr;
+        cv::Mat * _camera_matrix = nullptr;
+        cv::Mat * _camera_distort = nullptr;
+        std::map<int, std::pair<std::vector<double>, std::vector<double>>> * _markers = nullptr;
+        cv::aruco::Dictionary * _dictionary = nullptr;
+        cv::aruco::DetectorParameters * _detector_params = nullptr;
     };
 
     class MarkerTracker {
 
     public:
-        bool initialize(std::shared_ptr<Config> config);
+        MarkerTracker(std::shared_ptr<Config> config);
 
         bool process_frame(cv::Mat * frame);
 
@@ -60,6 +74,18 @@ namespace tracker {
         cv::aruco::Dictionary dictionary;
         cv::aruco::DetectorParameters detector_params;
         float marker_length = 0.1f; // 10cm by default
+
+        // Optical flow state for short-term dead-reckoning when no marker is visible
+        cv::Mat _prev_gray_frame;
+        std::vector<cv::Point2f> _prev_features;
+        int _frames_since_marker = 0;
+        double _last_camera_depth = 1.0; // z-depth of last observed marker in camera frame (m)
+
+        static constexpr int kMaxFlowFeatures = 200;
+        // Frames before declaring LOST when no marker is seen (~3 s at 30 fps)
+        static constexpr int kOpticalFlowLostThreshold = 90;
+        static constexpr float kMaxFlowError = 20.0f;
+        static constexpr int kMinTrackedFeatures = 8;
     };
 }
 
