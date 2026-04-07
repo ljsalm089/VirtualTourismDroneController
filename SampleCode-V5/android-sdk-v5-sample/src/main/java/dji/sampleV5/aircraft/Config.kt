@@ -15,7 +15,13 @@ const val MAXIMUM_HORIZONTAL_VELOCITY = 0.2 // m/s
 // if use the mock control class to test the control data sent from the headset
 const val USE_MOCK_CONTROL = false
 
+// still use the stick to control and drone, don't guide the drone when its real position differs
+// from the target one
 const val ONLY_OBSERVE_POSITION_CHANGE = true
+
+// the camera was calibrated based on this fixed focus ring value, when the drone camera focus
+// ring value changes, it should be automatically reset to this value
+const val TARGET_FOCUS_RING_VALUE = 49
 
 val TARGET_VIDEO_FRAME_SIZE = Size(640.0, 360.0)
 

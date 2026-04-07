@@ -1,19 +1,24 @@
 package dji.sampleV5.aircraft.virtualcontroller
 
+import android.util.Log
 import dji.sampleV5.aircraft.ONLY_OBSERVE_POSITION_CHANGE
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
+import dji.sampleV5.aircraft.TARGET_FOCUS_RING_VALUE
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.models.ControlStatusData
 import dji.sampleV5.aircraft.motiontracking.DjiMotionTracker
 import dji.sampleV5.aircraft.utils.LogLevel
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toJson
+import dji.sdk.keyvalue.key.DJICameraKey
+import dji.sdk.keyvalue.key.DJIKeyInfo
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.KeyTools
 import dji.sdk.keyvalue.value.flightcontroller.FlightCoordinateSystem
 import dji.sdk.keyvalue.value.flightcontroller.VirtualStickFlightControlParam
 import dji.v5.et.action
 import dji.v5.et.get
+import dji.v5.et.set
 import dji.v5.manager.aircraft.virtualstick.VirtualStickManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -121,13 +126,11 @@ class VirtualDroneController(
     private var positionMonitor: IPositionMonitor,
     private var observable: RawDataObservable,
     messageNotifier: MessageNotifier?,
-) : BaseDroneController(scope, controlStatusFeedback, messageNotifier) {
+) : BaseDroneController(scope, controlStatusFeedback, messageNotifier), OnRawDataObserver {
 
     private val expectedTakeOffHeight = 1.2f
 
     private var droneParam: VirtualStickFlightControlParam
-
-    private var sendingCmdJob: Job? = null
 
     private var synchronizationJob: Job? = null
 
@@ -150,6 +153,8 @@ class VirtualDroneController(
         droneParam = initDroneAdvancedParam()
         // TODO just for test
         droneParam.rollPitchCoordinateSystem = FlightCoordinateSystem.GROUND
+
+        observable.register(DJICameraKey.KeyCameraFocusRingValue, this)
     }
 
     override suspend fun switchDroneStatus(isReady: Boolean) {
@@ -346,6 +351,8 @@ class VirtualDroneController(
     }
 
     override suspend fun destroy() {
+        observable.unregister(DJICameraKey.KeyCameraFocusRingValue, this)
+
         if (setObstacleAvoidance(true)) {
             setObstacleAvoidanceWarningDistance(4.0)
         }
@@ -358,4 +365,13 @@ class VirtualDroneController(
 
     }
 
+    override fun invoke(p1: DJIKeyInfo<*>, p2: Any?) {
+        if (p1.innerIdentifier == DJICameraKey.KeyCameraFocusRingValue.innerIdentifier && p2 !=
+            TARGET_FOCUS_RING_VALUE) {
+            Timber.d("Reset the focus ring value to $TARGET_FOCUS_RING_VALUE")
+            messageNotifier?.invoke(Log.ERROR, "Drone camera focus ring value changes: $p2, reset" +
+                    " it to $TARGET_FOCUS_RING_VALUE", null)
+            KeyTools.createKey(DJICameraKey.KeyCameraFocusRingValue).set(TARGET_FOCUS_RING_VALUE)
+        }
+    }
 }
