@@ -15,6 +15,7 @@ import dji.sdk.keyvalue.value.common.Attitude
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import org.jason.testapp.android.stella.tracker.TrackingState
 import org.jason.testapp.android.stella.tracker.VSLamTracker
 import org.opencv.core.CvType
@@ -48,6 +49,8 @@ class DjiMotionTracker(
     private var processFrame: Mat =
         Mat(targetSize.height.toInt(), targetSize.width.toInt(), CvType.CV_8UC1)
 
+    private val isProcessing = AtomicBoolean(false)
+
     override fun initialize(
         configFilePath: String,
         vocabularyFilePath: String
@@ -72,6 +75,10 @@ class DjiMotionTracker(
     }
 
     override fun feedFrame(frame: VideoFrame) {
+        if (!isProcessing.compareAndSet(false, true)) {
+            return
+        }
+        
         frame.reference()
 
         scope.launch(dispatcher) {
@@ -86,6 +93,7 @@ class DjiMotionTracker(
                 tmpMat.release()
             } finally {
                 frame.release()
+                isProcessing.set(false)
             }
         }
     }

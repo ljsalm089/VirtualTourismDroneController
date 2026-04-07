@@ -23,14 +23,14 @@ Camera:
   color_order: "Gray"
 
 Preprocessing:
-  min_size: 800
+  min_size: 250
 
 Feature:
   name: "default ORB feature extraction setting"
   scale_factor: 1.2
   num_levels: 8
-  ini_fast_threshold: 20
-  min_fast_threshold: 7
+  ini_fast_threshold: 15
+  min_fast_threshold: 6
 
 Mapping:
   backend: "g2o"
@@ -55,10 +55,14 @@ Initializer:
 
 Tracking:
   backend: "g2o"
-  enable_temporal_keyframe_only_tracking: false
+  enable_temporal_keyframe_only_tracking: true
+  max_num_local_keyfrms: 120
 
 KeyframeInserter:
   wait_for_local_bundle_adjustment: false
+  lms_ratio_thr_view_changed: 0.75
+  enough_lms_thr: 70
+  max_interval: 0.33
 
 Relocalizer:
   search_neighbor: true
