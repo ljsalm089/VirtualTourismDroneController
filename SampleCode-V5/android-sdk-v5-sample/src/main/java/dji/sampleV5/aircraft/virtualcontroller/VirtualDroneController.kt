@@ -1,6 +1,7 @@
 package dji.sampleV5.aircraft.virtualcontroller
 
 import android.util.Log
+import dji.sampleV5.aircraft.ALLOWED_OFFSET
 import dji.sampleV5.aircraft.ONLY_OBSERVE_POSITION_CHANGE
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
 import dji.sampleV5.aircraft.TARGET_FOCUS_RING_VALUE
@@ -225,12 +226,12 @@ class VirtualDroneController(
 
         // TODO in Unity, y is the direction of up,
         //  but in stella vslam or opencv, y is the direction of down, which is same as the drone
-        var yGap = targetPosition.y - dronePos.y
+        var yGap = - targetPosition.y - dronePos.y
 
         // offset in 0.05 is acceptable
-        xGap = if (abs(xGap) > 0.05) xGap else 0f
-        zGap = if (abs(zGap) > 0.05) zGap else 0f
-        yGap = if (abs(yGap) > 0.05) yGap else 0f
+        xGap = if (abs(xGap) > ALLOWED_OFFSET) xGap else 0f
+        zGap = if (abs(zGap) > ALLOWED_OFFSET) zGap else 0f
+        yGap = if (abs(yGap) > ALLOWED_OFFSET) yGap else 0f
 
         val zVelocity = zGap / intervalInMillis * 1000.0
         val xVelocity = xGap / intervalInMillis * 1000.0
@@ -251,7 +252,7 @@ class VirtualDroneController(
         adjustDroneVelocityOneTimeBodyBased(
             headVelocity,
             rightVelocity,
-            -yVelocity,
+            - yVelocity,
             targetAttitude
         )
 

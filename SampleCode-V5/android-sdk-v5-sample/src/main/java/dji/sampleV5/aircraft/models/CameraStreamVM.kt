@@ -10,6 +10,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import dji.sampleV5.aircraft.BuildConfig
 import dji.sampleV5.aircraft.DJIApplication.Companion.idToString
 import dji.sampleV5.aircraft.PING_INTERVAL
@@ -56,13 +57,14 @@ import dji.v5.manager.aircraft.simulator.SimulatorStatusListener
 import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.functions.Consumer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.internal.closeQuietly
-import org.opencv.core.Size
 import org.webrtc.AudioSource
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
@@ -154,6 +156,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     private var videoResolution = 1920 to 1080
 
     private var videoFrameRate = 30
+
+    private var demoPathJob: Job? = null
 
     var focusRingValue = MutableLiveData<Int>(1)
     var focusRingRange = MutableLiveData<Range<Int>> (Range(0, 100))
@@ -371,12 +375,12 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         when (direction) {
             R.id.btn_forward -> { // forward // North
                 showMessageOnLogAndScreen(Log.DEBUG, "Press forward")
-                controlData.currentPosition.y -= 0.2f
+                controlData.currentPosition.y = - 0.2f
             }
 
             R.id.btn_backward -> { // backward
                 showMessageOnLogAndScreen(Log.DEBUG, "Press backward")
-                controlData.currentPosition.y += 0.2f
+                controlData.currentPosition.y = 0.2f
             }
 
             R.id.btn_left -> { // left
@@ -409,6 +413,18 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 temporaryGimbalAngle -= 10
             }
 
+            R.id.btn_demo_flight_path -> {
+                viewModelScope.launch (Dispatchers.Main) {
+                    demoPathJob?.apply {
+                        if (isActive) {
+                            cancelAndJoin()
+                        }
+                    }
+                    executeDemoPath()
+                }
+                return
+            }
+
             else -> {
                 temporaryAngle = 0
                 temporaryGimbalAngle = 0
@@ -432,6 +448,39 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 showMessageOnLogAndScreen(Log.ERROR, "Fail to take a photo")
             }
         }
+    }
+
+    fun executeDemoPath() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val pathList = application.assets.open("flight_path.json").use { inputStream ->
+                    val size = inputStream.available()
+                    val buffer = ByteArray(size)
+                    inputStream.read(buffer)
+                    val jsonString = String(buffer, Charsets.UTF_8)
+                    
+                    val listType = object : TypeToken<List<ControlStatusData>>() {}.type
+                    val tmp: List<ControlStatusData> = gson.fromJson(jsonString, listType)
+                    
+                    showMessageOnLogAndScreen(Log.INFO, "Loaded demo path with ${tmp.size} points")
+
+                    tmp
+                    // You can add logic here to feed the pathList to the droneController
+                }
+
+                if (pathList.isEmpty()) return@launch
+
+                for (item in pathList) {
+                    delay(100)
+
+                    viewModelScope.launch(Dispatchers.Main) {
+                        droneController?.onControllerStatusData(item)
+                    }
+                }
+            } catch (e: Exception) {
+                showMessageOnLogAndScreen(Log.ERROR, "Failed to load demo path", e)
+            }
+        }.also { demoPathJob = it }
     }
 
     fun updateFocusRing(float: Float) {

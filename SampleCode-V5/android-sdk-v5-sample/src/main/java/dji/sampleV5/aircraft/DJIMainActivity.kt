@@ -148,6 +148,11 @@ abstract class DJIMainActivity : AppCompatActivity() {
         binding.cbUseDroneCamera.setOnCheckedChangeListener { buttonView, isChecked ->
             USE_DRONE_CAMERA = isChecked
         }
+
+        binding.cbObservationModel.isChecked = ONLY_OBSERVE_POSITION_CHANGE
+        binding.cbObservationModel.setOnCheckedChangeListener { button, isChecked ->
+            ONLY_OBSERVE_POSITION_CHANGE = isChecked
+        }
     }
 
     override fun onRequestPermissionsResult(

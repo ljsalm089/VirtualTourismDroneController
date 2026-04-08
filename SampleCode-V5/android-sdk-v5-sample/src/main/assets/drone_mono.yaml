@@ -23,14 +23,14 @@ Camera:
   color_order: "Gray"
 
 Preprocessing:
-  min_size: 250
+  min_size: 400
 
 Feature:
   name: "default ORB feature extraction setting"
   scale_factor: 1.2
   num_levels: 8
-  ini_fast_threshold: 15
-  min_fast_threshold: 6
+  ini_fast_threshold: 20
+  min_fast_threshold: 7
 
 Mapping:
   backend: "g2o"

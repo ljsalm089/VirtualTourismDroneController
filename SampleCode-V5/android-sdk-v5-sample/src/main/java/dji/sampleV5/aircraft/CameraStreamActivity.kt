@@ -216,7 +216,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             binding.btnRotateLeft,
             binding.btnRotateRight,
             binding.btnRiseGimbal,
-            binding.btnSetGimbal
+            binding.btnSetGimbal,
+            binding.btnDemoFlightPath
         )
         testButtons.forEach { btn ->
             btn.setOnClickListener { view ->

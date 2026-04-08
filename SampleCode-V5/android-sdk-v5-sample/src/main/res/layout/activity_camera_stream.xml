@@ -124,7 +124,7 @@
             app:layout_constraintBottom_toTopOf="@+id/btn_reset"
             app:layout_constraintLeft_toLeftOf="parent"
             app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            />
 
         <Button
             android:id="@+id/btn_rotate_left"
@@ -157,10 +157,18 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="South"
-            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
             app:layout_constraintRight_toRightOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/btn_reset" />
+
+        <Button
+            android:text="Demo Path"
+            app:layout_constraintTop_toBottomOf="@+id/btn_backward"
+            android:id="@+id/btn_demo_flight_path"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
 
         <Button
             android:id="@+id/btn_rise_gimbal"

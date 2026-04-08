@@ -55,7 +55,8 @@ fun clipVelocityForSafety(velocity: Double): Double {
  * assign velocities, target attitude, target height to the drone
  * @param forwardBackward specify the velocity in the direction of forward and back ward, positive value means going forward, negative value means going backward
  * @param rightLeft specify the velocity in the direction of right and left, positive value means going right, negative value means going left
- * @param downwardUpward specify the target height of the drone
+ * @param downwardUpward specify the velocity in the direction of upward and downward, positive
+ * value means going down, negative value means going up
  * @param targetAttitude specify the target attitude of the drone, null means no change
  */
 internal fun adjustDroneVelocityOneTimeBodyBased(
