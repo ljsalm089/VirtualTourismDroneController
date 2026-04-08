@@ -62,7 +62,9 @@ class DjiMarkerTracker(
     override fun shutdown() {
         VideoManager.instance.unsubscribe(this)
 
-        super.shutdown()
+        scope.launch(dispatcher) {
+            super.shutdown()
+        }
     }
 
     override fun destroy() {

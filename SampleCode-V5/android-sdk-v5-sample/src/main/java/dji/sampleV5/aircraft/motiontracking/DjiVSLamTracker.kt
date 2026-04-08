@@ -67,11 +67,13 @@ class DjiVSLamTracker(
     }
 
     override fun shutdown() {
-        super.shutdown()
-
         VideoManager.instance.unsubscribe(this)
         rawDataObservable.unregister(gimbalAttitudeKey, this)
         rawDataObservable.unregister(attitudeKey, this)
+
+        scope.launch(dispatcher) {
+            super.shutdown()
+        }
     }
 
     override fun feedFrame(frame: VideoFrame) {

@@ -10,6 +10,8 @@
 #include <opencv2/video/tracking.hpp>
 #include <vector>
 
+#include "spdlog/spdlog.h"
+
 
 
 namespace tracker {
@@ -186,51 +188,71 @@ namespace tracker {
             gray_frame = *frame;
         }
 
+        if (process_marker(gray_frame)) {
+            return true;
+        }
+        return process_optical_flow(gray_frame);
+    }
+
+    bool MarkerTracker::process_marker(const cv::Mat& gray_frame) {
         std::vector<int> marker_ids;
         std::vector<std::vector<cv::Point2f>> marker_corners, rejected_candidates;
 
-        // Initialize dictionary if not already
-        if (dictionary.bytesList.empty()) {
-             dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-             detector_params = cv::aruco::DetectorParameters();
+        _detector->detectMarkers(gray_frame, marker_corners, marker_ids,
+                                rejected_candidates);
+
+        spdlog::debug("detected marker ids: {}", fmt::join(marker_ids, ", "));
+
+        if (marker_ids.empty()) {
+            return false;
         }
 
-        cv::aruco::ArucoDetector detector(dictionary, detector_params);
-        detector.detectMarkers(gray_frame, marker_corners, marker_ids, rejected_candidates);
+        // ----------------------------------------------------------------
+        // ArUco marker detected – compute absolute pose via PnP
+        // ----------------------------------------------------------------
 
-        if (!marker_ids.empty()) {
-            // ----------------------------------------------------------------
-            // ArUco marker detected – compute absolute pose via PnP
-            // ----------------------------------------------------------------
+        // Define the 3D coordinates of the marker corners in its own coordinate system
+        // The marker is in the XY plane, centered at (0,0,0)
+        std::vector<cv::Point3f> marker_obj_points;
+        auto marker_length = _config->get_marker_length();
+        marker_obj_points.emplace_back(-marker_length / 2.f, marker_length / 2.f, 0);
+        marker_obj_points.emplace_back(marker_length / 2.f, marker_length / 2.f, 0);
+        marker_obj_points.emplace_back(marker_length / 2.f, -marker_length / 2.f, 0);
+        marker_obj_points.emplace_back(-marker_length / 2.f, -marker_length / 2.f, 0);
 
-            // Define the 3D coordinates of the marker corners in its own coordinate system
-            // The marker is in the XY plane, centered at (0,0,0)
-            std::vector<cv::Point3f> marker_obj_points;
-            marker_obj_points.emplace_back(-marker_length / 2.f, marker_length / 2.f, 0);
-            marker_obj_points.emplace_back(marker_length / 2.f, marker_length / 2.f, 0);
-            marker_obj_points.emplace_back(marker_length / 2.f, -marker_length / 2.f, 0);
-            marker_obj_points.emplace_back(-marker_length / 2.f, -marker_length / 2.f, 0);
+        // Prefer markers with a known world pose from config; fall back to the first detected
+        auto& known_markers = _config->get_markers();
+        std::vector<int> target_indices;
+        bool using_world_frame = false;
 
-            // Prefer a marker with a known world pose from config; fall back to the first detected
-            auto& known_markers = _config->get_markers();
-            int target_idx = 0;
-            int target_id = marker_ids[0];
-            for (int i = 0; i < static_cast<int>(marker_ids.size()); i++) {
-                if (known_markers.count(marker_ids[i])) {
-                    target_idx = i;
-                    target_id = marker_ids[i];
-                    break;
-                }
+        for (int i = 0; i < static_cast<int>(marker_ids.size()); i++) {
+            if (known_markers.count(marker_ids[i])) {
+                target_indices.push_back(i);
+                using_world_frame = true;
             }
+        }
 
+        if (target_indices.empty() && !marker_ids.empty()) {
+            target_indices.push_back(0); // Fall back to the first detected marker
+        }
+
+        int successful_markers = 0;
+        cv::Vec3d sum_position(0, 0, 0);
+        cv::Vec3d first_rotation(0, 0, 0);
+        double sum_depth = 0.0;
+
+        for (int idx : target_indices) {
+            int target_id = marker_ids[idx];
             cv::Vec3d rvec, tvec;
-            bool success = cv::solvePnP(marker_obj_points, marker_corners[target_idx],
+            bool success = cv::solvePnP(marker_obj_points, marker_corners[idx],
                                         _config->get_camera_matrix(), _config->get_camera_distort(),
                                         rvec, tvec);
 
+            spdlog::debug("successfully computed the PnP for marker {}: "
+                          "{}", target_id, success);
+
             if (success) {
-                // Save the z-distance from camera to marker; used later as optical-flow depth scale
-                _last_camera_depth = std::max(tvec[2], 0.1);
+                sum_depth += std::max(tvec[2], 0.1);
 
                 // Pose of marker in camera coordinate system: [R_cm | T_cm]
                 // R_cm = Rodrigues(rvec), T_cm = tvec.
@@ -243,11 +265,12 @@ namespace tracker {
                 cv::Mat T_cm = cv::Mat(tvec);
                 cv::Mat T_mc = -R_mc * T_cm;  // drone/camera position in marker-local frame
 
-                if (known_markers.count(target_id)) {
+                cv::Vec3d pos;
+                cv::Vec3d rot;
+
+                if (using_world_frame) {
                     // Transform camera pose from marker-local frame to world frame using the
                     // marker's known world pose (position T_wm, rotation R_wm).
-                    // T_world = R_wm * T_mc + T_wm
-                    // R_wc    = R_wm * R_mc
                     const auto& [pos_wm, rot_wm] = known_markers.at(target_id);
 
                     cv::Mat R_wm;
@@ -255,33 +278,53 @@ namespace tracker {
                     cv::Mat T_wm = (cv::Mat_<double>(3, 1) << pos_wm[0], pos_wm[1], pos_wm[2]);
 
                     cv::Mat T_world = R_wm * T_mc + T_wm;
-                    _position = cv::Vec3d(T_world.at<double>(0), T_world.at<double>(1), T_world.at<double>(2));
+                    pos = cv::Vec3d(T_world.at<double>(0), T_world.at<double>(1), T_world.at<double>(2));
 
                     cv::Mat R_wc = R_wm * R_mc;
                     cv::Mat rvec_wc;
                     cv::Rodrigues(R_wc, rvec_wc);
-                    _rotation = cv::Vec3d(rvec_wc.at<double>(0), rvec_wc.at<double>(1), rvec_wc.at<double>(2));
+                    rot = cv::Vec3d(rvec_wc.at<double>(0), rvec_wc.at<double>(1), rvec_wc.at<double>(2));
                 } else {
                     // No world info for this marker; return position in marker-local frame
-                    _position = cv::Vec3d(T_mc.at<double>(0), T_mc.at<double>(1), T_mc.at<double>(2));
+                    pos = cv::Vec3d(T_mc.at<double>(0), T_mc.at<double>(1), T_mc.at<double>(2));
 
                     cv::Mat rvec_mc;
                     cv::Rodrigues(R_mc, rvec_mc);
-                    _rotation = cv::Vec3d(rvec_mc.at<double>(0), rvec_mc.at<double>(1), rvec_mc.at<double>(2));
+                    rot = cv::Vec3d(rvec_mc.at<double>(0), rvec_mc.at<double>(1), rvec_mc.at<double>(2));
                 }
 
-                // ---- Refresh optical-flow baseline from this frame ----
-                _frames_since_marker = 0;
-                cv::goodFeaturesToTrack(gray_frame, _prev_features,
-                                        kMaxFlowFeatures, 0.01, 10);
-                gray_frame.copyTo(_prev_gray_frame);
+                sum_position += pos;
 
-                _tracking_state = TrackingState::TRACKING;
-                return true;
+                // We simply take the first valid marker's rotation to avoid complex
+                // average computation for rotations. The positions are averaged below.
+                if (successful_markers == 0) {
+                    first_rotation = rot;
+                }
+                successful_markers++;
             }
-            // solvePnP failed – fall through to the optical-flow path below
         }
 
+        spdlog::debug("successful PnP calculations: {}", successful_markers);
+
+        if (successful_markers > 0) {
+            // Save the z-distance from camera to marker; used later as optical-flow depth scale
+            _last_camera_depth = sum_depth / successful_markers;
+            _position = sum_position / static_cast<double>(successful_markers);
+            _rotation = first_rotation;
+
+            // ---- Refresh optical-flow baseline from this frame ----
+            _frames_since_marker = 0;
+            cv::goodFeaturesToTrack(gray_frame, _prev_features,
+                                    kMaxFlowFeatures, 0.01, 10);
+            gray_frame.copyTo(_prev_gray_frame);
+
+            _tracking_state = TrackingState::TRACKING;
+            return true;
+        }
+        return false;
+    }
+
+    bool MarkerTracker::process_optical_flow(const cv::Mat& gray_frame) {
         // ----------------------------------------------------------------
         // No marker visible (or PnP failed): short-term dead-reckoning via
         // sparse Lucas–Kanade optical flow.
@@ -422,9 +465,12 @@ namespace tracker {
         _rotation = cv::Vec3d(0, 0, 0);
         _tracking_state = TrackingState::INITIALIZING;
 
-        dictionary = _config->get_dictionary();
-        detector_params = _config->get_detector_params();
-        marker_length = _config->get_marker_length();
+
+        // Initialize dictionary
+        if (nullptr == _detector) {
+          _detector = new cv::aruco::ArucoDetector(_config->get_dictionary(),
+_config->get_detector_params());
+        }
 
         // Reset optical-flow dead-reckoning state
         _prev_gray_frame.release();
@@ -443,5 +489,11 @@ namespace tracker {
         _prev_features.clear();
         _frames_since_marker = 0;
         _last_camera_depth = 1.0;
+
+        delete _detector;
+        _detector = nullptr;
+    }
+
+    MarkerTracker::~MarkerTracker() {
     }
 }

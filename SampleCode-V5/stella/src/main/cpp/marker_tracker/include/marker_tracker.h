@@ -53,6 +53,8 @@ namespace tracker {
     public:
         MarkerTracker(std::shared_ptr<Config> config);
 
+        ~MarkerTracker();
+
         bool process_frame(cv::Mat * frame);
 
         TrackingState get_tracking_state();
@@ -66,14 +68,15 @@ namespace tracker {
         void shutdown();
 
     private:
+        bool process_marker(const cv::Mat& gray_frame);
+        bool process_optical_flow(const cv::Mat& gray_frame);
+
         std::shared_ptr<Config> _config;
         TrackingState _tracking_state = TrackingState::INITIALIZING;
         cv::Vec3d _position = cv::Vec3d(0, 0, 0);
         cv::Vec3d _rotation = cv::Vec3d(0, 0, 0);
 
-        cv::aruco::Dictionary dictionary;
-        cv::aruco::DetectorParameters detector_params;
-        float marker_length = 0.1f; // 10cm by default
+        cv::aruco::ArucoDetector *_detector = nullptr;
 
         // Optical flow state for short-term dead-reckoning when no marker is visible
         cv::Mat _prev_gray_frame;
