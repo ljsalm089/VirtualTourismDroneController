@@ -3,6 +3,7 @@ package dji.sampleV5.aircraft.virtualcontroller
 import android.util.Log
 import dji.sampleV5.aircraft.MAXIMUM_HORIZONTAL_VELOCITY
 import dji.sampleV5.aircraft.utils.format
+import dji.sdk.keyvalue.key.DJICameraKey
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.GimbalKey
 import dji.sdk.keyvalue.key.KeyTools

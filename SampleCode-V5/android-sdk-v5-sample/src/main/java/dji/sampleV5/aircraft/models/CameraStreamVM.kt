@@ -14,6 +14,7 @@ import dji.sampleV5.aircraft.BuildConfig
 import dji.sampleV5.aircraft.DJIApplication.Companion.idToString
 import dji.sampleV5.aircraft.PING_INTERVAL
 import dji.sampleV5.aircraft.R
+import dji.sampleV5.aircraft.TARGET_FOCUS_RING_VALUE
 import dji.sampleV5.aircraft.TARGET_VIDEO_FRAME_SIZE
 import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
@@ -273,12 +274,13 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         if (null == motionTracker) {
             markerTracker = DjiMarkerTracker(TARGET_VIDEO_FRAME_SIZE, Dispatchers.IO, viewModelScope)
             val markerTrackerConfigFile = File(application.filesDir, "marker_tracker.yaml")
-            if (!markerTrackerConfigFile.exists()) {
-                copyFileFromRaw("marker_tracker.yaml", markerTrackerConfigFile.absolutePath)
+            if (markerTrackerConfigFile.exists()) {
+                markerTrackerConfigFile.delete()
             }
+            copyFileFromRaw("marker_tracker.yaml", markerTrackerConfigFile.absolutePath)
             markerTracker?.initialize(markerTrackerConfigFile.absolutePath)
 
-            // TODO initialize the tracker first, the target size need to be adjusted based on the real resolution of the video
+            // initialize the tracker first, the target size need to be adjusted based on the real resolution of the video
             motionTracker = DjiVSLamTracker(
                 TARGET_VIDEO_FRAME_SIZE,
                 statusMonitor!!,
@@ -286,9 +288,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             )
 
             val configFile: File = File(application.filesDir, "drone_mono.yaml")
-            if (!configFile.exists()) {
-                copyFileFromRaw("drone_mono.yaml", configFile.absolutePath)
+            if (configFile.exists()) {
+                configFile.delete()
             }
+            copyFileFromRaw("drone_mono.yaml", configFile.absolutePath)
 
             val vocabFile = File(application.filesDir, "orb_vocab.fbow")
             if (!vocabFile.exists()) {
@@ -815,8 +818,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         }, {
             showMessageOnLogAndScreen(Log.ERROR, "Fail to get the minimum camera focus ring value")
         })
-        focusRingValue.postValue(49)
-        KeyTools.createKey(CameraKey.KeyCameraFocusRingValue).set(49, {
+        focusRingValue.postValue(TARGET_FOCUS_RING_VALUE)
+        KeyTools.createKey(CameraKey.KeyCameraFocusRingValue).set(TARGET_FOCUS_RING_VALUE, {
             showMessageOnLogAndScreen(
                 Log.INFO,
                 "Set the maximum camera focus ring value to 49"

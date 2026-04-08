@@ -27,8 +27,9 @@ static tracker::MarkerTracker * obtain_native_tracker(JNIEnv *env, jobject thiz)
 
 
 static jlong create_native_object(JNIEnv *env, jobject thiz, jstring file_path) {
-    auto config = new tracker::Config(std::string(env->GetStringUTFChars(file_path, JNI_FALSE)));
-    auto tracker = new tracker::MarkerTracker(std::make_shared<tracker::Config>(* config));
+    auto file_path_str = std::string(env->GetStringUTFChars(file_path, JNI_FALSE));
+    auto config = std::make_shared<tracker::Config>(file_path_str);
+    auto tracker = new tracker::MarkerTracker(config);
     return reinterpret_cast<jlong>(tracker);
 }
 

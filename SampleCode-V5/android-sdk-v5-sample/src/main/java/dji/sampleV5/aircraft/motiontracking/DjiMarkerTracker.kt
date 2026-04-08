@@ -10,6 +10,7 @@ import org.jason.testapp.android.stella.tracker.MarkerBasedTracker
 import org.opencv.core.CvType
 import org.opencv.core.Mat
 import org.opencv.core.Size
+import java.util.concurrent.atomic.AtomicBoolean
 import org.opencv.imgproc.Imgproc
 
 class DjiMarkerTracker(
@@ -22,22 +23,32 @@ class DjiMarkerTracker(
 
     private val processFrame: Mat = Mat(targetSize.height.toInt(), targetSize.width.toInt(), CvType.CV_8UC1)
 
+    private val isProcessing = AtomicBoolean(false)
+
     override fun onVideoFrame(frame: VideoFrame) {
         feedFrame(frame)
     }
 
     override fun feedFrame(frame: VideoFrame) {
+        if (!isProcessing.compareAndSet(false, true)) {
+            return
+        }
+
         frame.reference()
 
+        val grayBuffer = frame.buffer.slice(0, frame.width * frame.height)
+
         scope.launch(dispatcher) {
-            val grayBuffer = frame.buffer.slice(0, frame.width * frame.height)
-            val tmpMat = Mat(frame.height, frame.width, CvType.CV_8UC1, grayBuffer)
-
-            Imgproc.resize(tmpMat, processFrame, targetSize)
-            feedFrame(processFrame)
-
-            tmpMat.release()
-            frame.release()
+            var tmpMat : Mat? = null
+            try {
+                tmpMat = Mat(frame.height, frame.width, CvType.CV_8UC1, grayBuffer)
+                Imgproc.resize(tmpMat, processFrame, targetSize)
+                feedFrame(processFrame)
+            } finally {
+                isProcessing.set(false)
+                tmpMat?.release()
+                frame.release()
+            }
         }
     }
 
@@ -55,6 +66,10 @@ class DjiMarkerTracker(
     }
 
     override fun destroy() {
-        super.destroy()
+        isProcessing.set(true)
+        scope.launch(dispatcher) {
+            super.destroy()
+            processFrame.release()
+        }
     }
 }

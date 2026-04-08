@@ -92,8 +92,8 @@ class DjiVSLamTracker(
 
                 tmpMat.release()
             } finally {
-                frame.release()
                 isProcessing.set(false)
+                frame.release()
             }
         }
     }
@@ -166,8 +166,11 @@ class DjiVSLamTracker(
     }
 
     override fun destroy() {
-        super.destroy()
-        processFrame.release()
+        isProcessing.set(true)
+        scope.launch(dispatcher) {
+            super.destroy()
+            processFrame.release()
+        }
     }
 
 }

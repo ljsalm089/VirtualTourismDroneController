@@ -21,7 +21,8 @@ class VideoFrame (data: ByteArray, val length: Int, val width: Int, val height: 
 
 
     fun release() {
-        if (counter.decrementAndGet() == 0) {
+        val referenceCount = counter.decrementAndGet()
+        if (referenceCount == 0) {
             release(buffer)
         }
     }

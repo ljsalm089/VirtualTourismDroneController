@@ -1,7 +1,7 @@
-# pixel 6 monocular model
+# DJI drone monocular model
 
 Camera:
-  name: "pixel 6 monocular"
+  name: "dji drone monocular"
   setup: "monocular"
   model: "perspective"
 

@@ -102,8 +102,6 @@ static jlong create_native_tracker(JNIEnv *env, jobject thiz, jstring config_fil
 
 static void destroy(JNIEnv *env, jobject thiz) {
     auto tracker_struct = obtain_tracker_struct(env, thiz);
-    auto config = tracker_struct->config.get();
-    delete config;
 
     auto tracker = tracker_struct->tracker;
     delete tracker;
@@ -155,6 +153,7 @@ static void set_loop_detector(JNIEnv *env, jobject thiz, jboolean enabled) {
 
 static void process_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr, jlong frame_ptr) {
     TRACE_FUNC_WITH_NAME("native_process_frame");
+    spdlog::debug("Tracing native_process_frame");
     auto track_struct = obtain_tracker_struct(tracker_ptr);
     auto tracker = track_struct->tracker;
     auto frame = reinterpret_cast<cv::Mat *>(frame_ptr);

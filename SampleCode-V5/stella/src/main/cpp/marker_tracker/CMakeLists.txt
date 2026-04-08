@@ -24,5 +24,6 @@ target_link_libraries(marker_tracker PRIVATE
     native_trace
     yaml-cpp
     opencv_aruco
+    opencv_video
     opencv_core
 )
