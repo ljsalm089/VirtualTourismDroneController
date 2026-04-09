@@ -127,7 +127,7 @@ class VirtualDroneController(
     private var positionMonitor: IPositionMonitor,
     private var observable: RawDataObservable,
     messageNotifier: MessageNotifier?,
-) : BaseDroneController(scope, controlStatusFeedback, messageNotifier), OnRawDataObserver {
+) : BaseDroneController(scope, controlStatusFeedback, messageNotifier) {
 
     private val expectedTakeOffHeight = 1.2f
 
@@ -154,8 +154,6 @@ class VirtualDroneController(
         droneParam = initDroneAdvancedParam()
         // TODO just for test
         droneParam.rollPitchCoordinateSystem = FlightCoordinateSystem.GROUND
-
-        observable.register(DJICameraKey.KeyCameraFocusRingValue, this)
     }
 
     override suspend fun switchDroneStatus(isReady: Boolean) {
@@ -352,28 +350,16 @@ class VirtualDroneController(
     }
 
     override suspend fun destroy() {
-        observable.unregister(DJICameraKey.KeyCameraFocusRingValue, this)
-
         if (setObstacleAvoidance(true)) {
             setObstacleAvoidanceWarningDistance(4.0)
         }
         setGimbalMode(false)
         VirtualStickManager.getInstance().setVirtualStickAdvancedModeEnabled(false)
         changeVirtualStickStatus(false)
-
-        observable.unregister(DJICameraKey.KeyCameraFocusRingValue, this)
     }
 
     override fun riseAndSetGimbal(angle: Double) {
 
     }
 
-    override fun invoke(p1: DJIKeyInfo<*>, p2: Any?) {
-        if (p1.innerIdentifier == DJICameraKey.KeyCameraFocusRingValue.innerIdentifier && p2 != TARGET_FOCUS_RING_VALUE) {
-            Timber.d("Reset the focus ring value to $TARGET_FOCUS_RING_VALUE")
-            messageNotifier?.invoke(Log.ERROR, "Drone camera focus ring value changes: $p2, reset" +
-                    " it to $TARGET_FOCUS_RING_VALUE", null)
-            KeyTools.createKey(DJICameraKey.KeyCameraFocusRingValue).set(TARGET_FOCUS_RING_VALUE)
-        }
-    }
 }

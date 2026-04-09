@@ -15,11 +15,14 @@ Camera:
 
 
 Markers:
-  - id: 1
+  - id: 15
+    position: [ 0.0, 0.0, 0.0 ]
+    rotation: [ 0.0, 0.0, 0.0 ]
+  - id: 301
     position: [ 0.0, 0.0, 0.0 ]
     rotation: [ 0.0, 0.0, 0.0 ]
 
 
 Marker:
-  length: 0.80
-  dictionary: DICT_6X6_250
+  length: 0.080
+  dictionary: DICT_ARUCO_ORIGINAL

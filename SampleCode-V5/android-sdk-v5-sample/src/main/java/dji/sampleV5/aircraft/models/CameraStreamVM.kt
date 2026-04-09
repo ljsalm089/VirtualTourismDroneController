@@ -28,6 +28,7 @@ import dji.sampleV5.aircraft.utils.toJson
 import dji.sampleV5.aircraft.virtualcontroller.DroneStatusMonitor
 import dji.sampleV5.aircraft.virtualcontroller.IDroneController
 import dji.sampleV5.aircraft.virtualcontroller.MockDroneController
+import dji.sampleV5.aircraft.virtualcontroller.OnRawDataObserver
 import dji.sampleV5.aircraft.virtualcontroller.VirtualDroneController
 import dji.sampleV5.aircraft.webrtc.ConnectionInfo
 import dji.sampleV5.aircraft.webrtc.DATA_RECEIVER
@@ -45,6 +46,8 @@ import dji.sampleV5.aircraft.webrtc.VIDEO_PUBLISHER
 import dji.sampleV5.aircraft.webrtc.WebRtcEvent
 import dji.sampleV5.aircraft.webrtc.WebRtcManager
 import dji.sdk.keyvalue.key.CameraKey
+import dji.sdk.keyvalue.key.DJICameraKey
+import dji.sdk.keyvalue.key.DJIKeyInfo
 import dji.sdk.keyvalue.key.KeyTools
 import dji.sdk.keyvalue.value.camera.CameraFocusMode
 import dji.sdk.keyvalue.value.camera.VideoFrameRate
@@ -112,7 +115,7 @@ data class ControlStatusData(
     var benchmarkSampleTimestamp: Long = SystemClock.elapsedRealtime()
 )
 
-class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListener {
+class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListener, OnRawDataObserver {
 
     private lateinit var webRtcManager: WebRtcManager
     private lateinit var eventDisposable: Disposable
@@ -271,6 +274,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     fun startPublish() {
         webRtcManager.start()
 
+        // make sure the camera focus ring value is stable at 49
+        statusMonitor?.register(DJICameraKey.KeyCameraFocusRingValue, this)
+
         if (null == motionTracker) {
             markerTracker = DjiMarkerTracker(TARGET_VIDEO_FRAME_SIZE, Dispatchers.IO, viewModelScope)
             val markerTrackerConfigFile = File(application.filesDir, "marker_tracker.yaml")
@@ -315,6 +321,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     fun stopPublish() {
         webRtcManager.stop()
+
+        statusMonitor?.unregister(DJICameraKey.KeyCameraFocusRingValue, this)
 
         motionTracker?.shutdown()
         motionTracker?.destroy()
@@ -515,6 +523,15 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 showMessageOnLogAndScreen(Log.ERROR, "Failed to load demo path", e)
             }
         }.also { demoPathJob = it }
+    }
+
+    override fun invoke(p1: DJIKeyInfo<*>, p2: Any?) {
+        if (p1.innerIdentifier == DJICameraKey.KeyCameraFocusRingValue.innerIdentifier && p2 != TARGET_FOCUS_RING_VALUE) {
+            Timber.d("Reset the focus ring value to $TARGET_FOCUS_RING_VALUE")
+            showMessageOnLogAndScreen(Log.ERROR, "Drone camera focus ring value changes: $p2, reset" +
+                    " it to $TARGET_FOCUS_RING_VALUE", null)
+            KeyTools.createKey(DJICameraKey.KeyCameraFocusRingValue).set(TARGET_FOCUS_RING_VALUE)
+        }
     }
 
     fun updateFocusRing(float: Float) {

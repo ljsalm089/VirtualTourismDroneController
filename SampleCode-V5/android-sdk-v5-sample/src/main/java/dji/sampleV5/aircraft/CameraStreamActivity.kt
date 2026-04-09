@@ -355,6 +355,12 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
             binding.btnStopPublishing.updateTextColor(isVideoOn)
         }
 
+        if (!FLYING_IS_ALLOWED) {
+            binding.btnGetReadyToControl.updateTextColor(false)
+            binding.btnAbortRemoteControl.updateTextColor(false)
+            return
+        }
+
         if (!isVideoOn) {
             binding.btnGetReadyToControl.updateTextColor(false)
             binding.btnAbortRemoteControl.updateTextColor(false)
