@@ -28,7 +28,10 @@ import dji.sampleV5.aircraft.utils.toJson
 import dji.sampleV5.aircraft.virtualcontroller.DroneStatusMonitor
 import dji.sampleV5.aircraft.virtualcontroller.IDroneController
 import dji.sampleV5.aircraft.virtualcontroller.MockDroneController
+import dji.sampleV5.aircraft.virtualcontroller.OnRawDataObserver
 import dji.sampleV5.aircraft.virtualcontroller.VirtualDroneController
+import dji.sampleV5.aircraft.virtualcontroller.adjustCameraOrientation
+import dji.sampleV5.aircraft.virtualcontroller.setGimbalMode
 import dji.sampleV5.aircraft.webrtc.ConnectionInfo
 import dji.sampleV5.aircraft.webrtc.DATA_RECEIVER
 import dji.sampleV5.aircraft.webrtc.DJIVideoCapturer
@@ -45,6 +48,8 @@ import dji.sampleV5.aircraft.webrtc.VIDEO_PUBLISHER
 import dji.sampleV5.aircraft.webrtc.WebRtcEvent
 import dji.sampleV5.aircraft.webrtc.WebRtcManager
 import dji.sdk.keyvalue.key.CameraKey
+import dji.sdk.keyvalue.key.DJICameraKey
+import dji.sdk.keyvalue.key.DJIKeyInfo
 import dji.sdk.keyvalue.key.KeyTools
 import dji.sdk.keyvalue.value.camera.CameraFocusMode
 import dji.sdk.keyvalue.value.camera.VideoFrameRate
@@ -112,7 +117,7 @@ data class ControlStatusData(
     var benchmarkSampleTimestamp: Long = SystemClock.elapsedRealtime()
 )
 
-class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListener {
+class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListener, OnRawDataObserver {
 
     private lateinit var webRtcManager: WebRtcManager
     private lateinit var eventDisposable: Disposable
@@ -311,9 +316,21 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         isVideoPublish.postValue(true)
         isDroneControlling.postValue(false)
 
+        statusMonitor?.register(DJICameraKey.KeyCameraFocusRingValue, this)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            if (setGimbalMode(true, this@CameraStreamVM::showMessageOnLogAndScreen)) {
+                adjustCameraOrientation(0.0, 0.0, 40.0)
+            }
+        }
     }
 
     fun stopPublish() {
+        viewModelScope.launch(Dispatchers.IO) {
+            setGimbalMode(false, this@CameraStreamVM::showMessageOnLogAndScreen)
+        }
+        statusMonitor?.unregister(DJICameraKey.KeyCameraFocusRingValue, this)
+
         webRtcManager.stop()
 
         motionTracker?.shutdown()
@@ -870,5 +887,15 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         // don't log the simulator state into logcat or file, because it is very frequent while in the simulator mode (everything is too ideal)
 //        Timber.d("Simulator mode status: $simulatorState")
         emitMonitorStatus(mapOf(R.string.hint_simulator_state.idToString() to simulatorState))
+    }
+
+
+    override fun invoke(p1: DJIKeyInfo<*>, p2: Any?) {
+        if (p1.innerIdentifier == DJICameraKey.KeyCameraFocusRingValue.innerIdentifier && p2 != TARGET_FOCUS_RING_VALUE) {
+            Timber.d("Reset the focus ring value to $TARGET_FOCUS_RING_VALUE")
+            showMessageOnLogAndScreen(Log.ERROR, "Drone camera focus ring value changes: $p2, reset" +
+                    " it to $TARGET_FOCUS_RING_VALUE", null)
+            KeyTools.createKey(DJICameraKey.KeyCameraFocusRingValue).set(TARGET_FOCUS_RING_VALUE)
+        }
     }
 }

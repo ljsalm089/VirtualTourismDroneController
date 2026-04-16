@@ -201,7 +201,8 @@ internal suspend fun setObstacleAvoidance(enable: Boolean, messageNotifier: Mess
     }
 
 internal suspend fun setGimbalMode(allFree: Boolean, messageNotifier: MessageNotifier? = null): Boolean = suspendCancellableCoroutine { continuation ->
-    KeyTools.createKey(GimbalKey.KeyGimbalMode).set(if (allFree) GimbalMode.YAW_FOLLOW else GimbalMode.FPV, {
+    KeyTools.createKey(GimbalKey.KeyGimbalMode).set(if (allFree) GimbalMode.FPV else GimbalMode
+        .YAW_FOLLOW, {
         messageNotifier?.invoke(Log.DEBUG, "Set gimbal mode successfully", null)
         continuation.resume(true)
     }, {
