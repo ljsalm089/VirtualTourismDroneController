@@ -151,25 +151,15 @@ static void set_loop_detector(JNIEnv *env, jobject thiz, jboolean enabled) {
     }
 }
 
-static void process_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr, jlong frame_ptr) {
+static void process_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr, jlong
+                                                                            frame_ptr, jdouble frame_timestamp_in_seconds) {
     TRACE_FUNC_WITH_NAME("native_process_frame");
     spdlog::debug("Tracing native_process_frame");
     auto track_struct = obtain_tracker_struct(tracker_ptr);
     auto tracker = track_struct->tracker;
     auto frame = reinterpret_cast<cv::Mat *>(frame_ptr);
 
-    // Use steady_clock for monotonic time tracking
-    auto current_time = std::chrono::steady_clock::now();
-    auto current_timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(current_time.time_since_epoch()).count();
-
-    if (0 == track_struct->timestamp) {
-        track_struct->timestamp = current_timestamp_ms;
-    }
-
-    // stella_vslam expects timestamps in seconds
-    double timestamp_sec = static_cast<double>(current_timestamp_ms - track_struct->timestamp) / 1000.0;
-
-    tracker->feed_monocular_frame(*frame, timestamp_sec);
+    tracker->feed_monocular_frame(*frame, frame_timestamp_in_seconds);
 }
 
 static jlong obtain_processed_frame(JNIEnv *env, jobject thiz, jlong tracker_ptr) {
@@ -289,7 +279,7 @@ static JNINativeMethod methods[] = {
         {"setLoopDetector", "(Z)V", (void *) set_loop_detector},
         {"startup", "()V", (void *) startup},
         {"shutdown", "()V", (void *) shutdown},
-        {"nativeProcessFrame", "(JJ)V", (void *) process_frame},
+        {"nativeProcessFrame", "(JJD)V", (void *) process_frame},
         {"relocalizeCameraPose", "([D)Z", (void *) relocalize_camera_pose},
         {"getPositionAndRotation", "()[D", (void *) get_current_position_rotation},
         {"nativeTrackingState", "(J)I", (void *) get_tracking_state},

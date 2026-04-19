@@ -22,7 +22,9 @@ const val USE_MOCK_CONTROL = false
 var ONLY_OBSERVE_POSITION_CHANGE = false
 
 // if allow the drone to fly
-var FLYING_DRONE_ALLOWED = false
+var FLYING_DRONE_ALLOWED = true
+
+var VSLAM_POSITION_SCALE = 1.0
 
 // the camera was calibrated based on this fixed focus ring value, when the drone camera focus
 // ring value changes, it should be automatically reset to this value

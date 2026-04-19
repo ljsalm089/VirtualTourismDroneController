@@ -1,5 +1,6 @@
 package dji.sampleV5.aircraft.motiontracking
 
+import dji.sampleV5.aircraft.VSLAM_POSITION_SCALE
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.media.VideoFrame
 import dji.sampleV5.aircraft.media.VideoFrameListener
@@ -38,8 +39,10 @@ class DjiVSLamTracker(
 
     private val attitudeKey = FlightControllerKey.KeyAircraftAttitude
 
+    @Volatile
     private var benchmarkAttitude: Double = 0.0
 
+    @Volatile
     private var benchmarkPosition: Vector3D = Vector3D(DoubleArray(3))
 
     private var currentAttitude: Double = 0.0
@@ -90,7 +93,7 @@ class DjiVSLamTracker(
 
                 Imgproc.resize(tmpMat, processFrame, targetSize)
 
-                processFrame(processFrame)
+                processFrame(processFrame, frame.frameTimeStampInSeconds)
 
                 tmpMat.release()
             } finally {
@@ -122,7 +125,7 @@ class DjiVSLamTracker(
         position[0] -= benchmarkPosition.x
         position[1] -= benchmarkPosition.y
         position[2] -= benchmarkPosition.z
-        return position
+        return position.map { it * VSLAM_POSITION_SCALE }.toDoubleArray()
     }
 
     override fun getPosition(): Vector3D {

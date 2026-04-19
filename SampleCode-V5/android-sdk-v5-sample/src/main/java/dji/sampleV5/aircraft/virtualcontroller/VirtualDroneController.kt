@@ -5,6 +5,7 @@ import dji.sampleV5.aircraft.ALLOWED_OFFSET
 import dji.sampleV5.aircraft.ONLY_OBSERVE_POSITION_CHANGE
 import dji.sampleV5.aircraft.SENDING_FREQUENCY
 import dji.sampleV5.aircraft.TARGET_FOCUS_RING_VALUE
+import dji.sampleV5.aircraft.VSLAM_POSITION_SCALE
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.models.ControlStatusData
 import dji.sampleV5.aircraft.motiontracking.DjiVSLamTracker
@@ -300,6 +301,8 @@ class VirtualDroneController(
             Timber.d("The drone is ready or the task becomes invalid (${!this.isActive})")
 
             observable.unregister(ultrasonicHeightKey, rawDataObserver)
+
+            VSLAM_POSITION_SCALE = abs(initHeight / positionMonitor.getPosition().y)
 
             if (this.isActive) {
                 continuation.resume(Unit)

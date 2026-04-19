@@ -347,6 +347,8 @@ class CameraStreamActivity : AppCompatActivity(), SurfaceHolder.Callback {
         val isVideoOn = viewModel.isVideoPublish.value == true
         val isControlOn = viewModel.isDroneControlling.value == true
 
+        binding.btnStartPublishing.keepScreenOn = isVideoOn
+
         if (isControlOn) {
             binding.btnStartPublishing.updateTextColor(false)
             binding.btnStopPublishing.updateTextColor(false)
