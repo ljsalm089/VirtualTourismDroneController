@@ -16,6 +16,8 @@
 
 #include <string>
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 
 #define TAG "NativeTracker"
 
@@ -235,9 +237,37 @@ static jdoubleArray get_current_position_rotation(JNIEnv *env, jobject thiz) {
     const stella_vslam::Vec3_t translation = cam_pose_wc.block<3, 1>(0, 3);
     const stella_vslam::Mat33_t rotation_mat = cam_pose_wc.block<3, 3>(0, 0);
 
-    // Extract Euler angles (Pitch, Yaw, Roll) in XYZ order
-    // Result is in Radians
-    stella_vslam::Vec3_t euler = rotation_mat.eulerAngles(0, 1, 2);
+    // Extract intrinsic XYZ Euler angles (R = Rx·Ry·Rz) directly from the
+    // rotation matrix elements.
+    //
+    // Eigen's eulerAngles(0,1,2) is NOT used here because it returns angles in
+    // [0, π] for the middle axis and can flip by ±π discontinuously near
+    // singularities, even for a physically smooth rotation.
+    //
+    // From the matrix expansion of R = Rx(pitch)·Ry(yaw)·Rz(roll):
+    //   R(0,2) = -sin(yaw)
+    //   R(1,2) =  cos(yaw)·sin(pitch)    R(2,2) = cos(yaw)·cos(pitch)
+    //   R(0,1) =  cos(yaw)·sin(roll)     R(0,0) = cos(yaw)·cos(roll)
+    //
+    // atan2 returns values in (-π, π] and is continuous everywhere it is
+    // well-defined.  The only true singularity is yaw = ±90° (gimbal lock),
+    // handled explicitly below.
+    const double sin_yaw = std::clamp(-rotation_mat(0, 2), -1.0, 1.0);
+    const double cos_yaw = std::sqrt(std::max(0.0, 1.0 - sin_yaw * sin_yaw));
+
+    const double yaw_rad = std::asin(sin_yaw);
+    double pitch_rad, roll_rad;
+
+    if (cos_yaw > 1e-6) {
+        // Normal case: both pitch and roll are uniquely recoverable.
+        pitch_rad = std::atan2(rotation_mat(1, 2), rotation_mat(2, 2));
+        roll_rad  = std::atan2(rotation_mat(0, 1), rotation_mat(0, 0));
+    } else {
+        // Gimbal lock (yaw ≈ ±90°): pitch and roll become coupled.
+        // Capture the combined DoF in pitch and set roll to 0.
+        pitch_rad = std::atan2(-rotation_mat(1, 0), rotation_mat(1, 1));
+        roll_rad  = 0.0;
+    }
 
     jdoubleArray result = env->NewDoubleArray(6);
     if (result == nullptr) {
@@ -249,9 +279,9 @@ static jdoubleArray get_current_position_rotation(JNIEnv *env, jobject thiz) {
     elements[1] = translation(1);
     elements[2] = translation(2);
     // Convert to degrees
-    elements[3] = euler(0) * (180.0 / M_PI); // Pitch (X-axis)
-    elements[4] = euler(1) * (180.0 / M_PI); // Yaw (Y-axis)
-    elements[5] = euler(2) * (180.0 / M_PI); // Roll (Z-axis)
+    elements[3] = pitch_rad * (180.0 / M_PI); // Pitch (X-axis)
+    elements[4] = yaw_rad   * (180.0 / M_PI); // Yaw   (Y-axis)
+    elements[5] = roll_rad  * (180.0 / M_PI); // Roll  (Z-axis)
 
     env->SetDoubleArrayRegion(result, 0, 6, elements);
 

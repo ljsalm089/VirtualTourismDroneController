@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import org.jason.testapp.android.stella.tracker.TrackingState
 import org.jason.testapp.android.stella.tracker.VSlamTracker
 import org.opencv.core.CvType
@@ -53,6 +54,12 @@ class DjiVSLamTracker(
         Mat(targetSize.height.toInt(), targetSize.width.toInt(), CvType.CV_8UC1)
 
     private val isProcessing = AtomicBoolean(false)
+
+    // Incremented after every completed feed_monocular_frame() call.
+    // Used by start() to detect when the SLAM has processed its first frame
+    // after a relocalization request — the only reliable signal that the new
+    // pose origin has actually been applied.
+    private val processedFrameCount = AtomicLong(0)
 
     override fun initialize(
         configFilePath: String,
@@ -94,6 +101,7 @@ class DjiVSLamTracker(
                 Imgproc.resize(tmpMat, processFrame, targetSize)
 
                 processFrame(processFrame, frame.frameTimeStampInSeconds)
+                processedFrameCount.incrementAndGet()
 
                 tmpMat.release()
             } finally {
@@ -150,17 +158,50 @@ class DjiVSLamTracker(
     }
 
     override fun start() {
-        // reset the location and orientation
-        // the operation of relocalization is asynchronous
+        // relocalizeCameraPose() only sets a flag inside stella_vslam's tracking
+        // module — it does NOT update the pose immediately. The new origin is
+        // applied the next time feed_monocular_frame() runs (i.e., the next
+        // dispatched feedFrame job). Polling getTrackingState() is therefore
+        // useless as a synchronisation signal here.
+        //
+        // Instead we snapshot processedFrameCount before the request and wait
+        // until 2 more frames have completed:
+        //   • Frame N  — may already be mid-flight when we call relocalize, so
+        //                the flag might be read only at the very end of that call
+        //                or not at all in that cycle.
+        //   • Frame N+1 — guaranteed to start after the flag is set, so the new
+        //                 pose is definitely applied by the time this frame ends.
+        //   • We wait for N+2 to be safe and ensure getCurrentPosition() already
+        //     reflects the relocated origin when we snapshot it.
         this.relocalizeCameraPose(DoubleArray(6))
-        try {
-            Thread.sleep(100)
-        } catch (e: InterruptedException) {
-            Timber.e(e)
+
+        val framesBefore = processedFrameCount.get()
+        val requiredFrames = framesBefore + 2
+        val timeoutMs  = 3_000L
+        val pollStepMs =    20L
+        var elapsedMs  =     0L
+
+        while (processedFrameCount.get() < requiredFrames && elapsedMs < timeoutMs) {
+            try {
+                Thread.sleep(pollStepMs)
+            } catch (e: InterruptedException) {
+                Timber.w(e, "Interrupted while waiting for post-relocalization frames")
+                Thread.currentThread().interrupt()
+                break
+            }
+            elapsedMs += pollStepMs
         }
+
+        val framesProcessed = processedFrameCount.get() - framesBefore
+        if (framesProcessed < 2) {
+            Timber.w("Only $framesProcessed frame(s) processed within ${timeoutMs}ms after relocalization — benchmark may be stale")
+        } else {
+            Timber.d("Relocalization confirmed after $framesProcessed frames (${elapsedMs}ms)")
+        }
+
         benchmarkPosition = Vector3D(super.getCurrentPosition())
+        benchmarkAttitude = currentAttitude
         Timber.d("Reset the vslam camera pose, current position: ${getPosition()}")
-        this.benchmarkAttitude = currentAttitude
     }
 
     override fun stop() {
