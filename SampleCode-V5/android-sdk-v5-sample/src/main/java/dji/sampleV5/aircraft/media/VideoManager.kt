@@ -1,5 +1,6 @@
 package dji.sampleV5.aircraft.media
 
+import android.os.SystemClock
 import dji.sampleV5.aircraft.DJIApplication
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
@@ -13,12 +14,15 @@ import kotlinx.coroutines.launch
 class VideoManager private constructor(val scope: CoroutineScope, dispatcher: CoroutineDispatcher) :
     ICameraStreamManager.CameraFrameListener {
 
+        private var startTimestamp: Long = 0
+
     var dispatching: CoroutineDispatcher =
         dispatcher.limitedParallelism(1, "Dispatching VideoManager")
 
     private var subscribers: MutableList<VideoFrameListener> = mutableListOf()
 
     private fun startVideoSubscription() {
+        startTimestamp = 0
         MediaDataCenter.getInstance().cameraStreamManager.addFrameListener(ComponentIndexType.LEFT_OR_MAIN,
             ICameraStreamManager.FrameFormat.YUV420_888, this)
     }
@@ -57,7 +61,11 @@ class VideoManager private constructor(val scope: CoroutineScope, dispatcher: Co
         format: ICameraStreamManager.FrameFormat
     ) {
         scope.launch(dispatching) {
-            val frame = VideoFrame(frameData, length - offset, width, height, format.value)
+            if (0L == startTimestamp) {
+                startTimestamp = SystemClock.elapsedRealtime()
+            }
+            val frame = VideoFrame(frameData, length - offset, width, height, format.value,
+                (SystemClock.elapsedRealtime() - startTimestamp) / 1000.0)
             frame.reference()
             try {
                 for (listener in subscribers) {

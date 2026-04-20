@@ -17,8 +17,8 @@ abstract class VSlamTracker<I, O> : IMotionTracker<I, O> {
         return 0L != trackerPtr
     }
 
-    protected fun processFrame(frame: Mat) {
-        nativeProcessFrame(trackerPtr, frame.nativeObj)
+    protected fun processFrame(frame: Mat, frameTimestampInSeconds: Double) {
+        nativeProcessFrame(trackerPtr, frame.nativeObj, frameTimestampInSeconds)
     }
 
     protected fun getProcessedFrame(): Mat {
@@ -68,7 +68,8 @@ abstract class VSlamTracker<I, O> : IMotionTracker<I, O> {
         return trackerPtr
     }
 
-    private external fun nativeProcessFrame(trackerPtr: Long, framePtr: Long)
+    private external fun nativeProcessFrame(trackerPtr: Long, framePtr: Long,
+                                            frameTimestampInSeconds: Double)
 
     private external fun nativeTrackingState(trackerPtr: Long): Int
 

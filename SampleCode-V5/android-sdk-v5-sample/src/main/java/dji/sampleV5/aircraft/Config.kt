@@ -17,11 +17,14 @@ const val ALLOWED_OFFSET = 0.05
 // if use the mock control class to test the control data sent from the headset
 const val USE_MOCK_CONTROL = false
 
-const val FLYING_IS_ALLOWED = false
-
 // still use the stick to control and drone, don't guide the drone when its real position differs
 // from the target one
 var ONLY_OBSERVE_POSITION_CHANGE = false
+
+// if allow the drone to fly
+var FLYING_DRONE_ALLOWED = true
+
+var VSLAM_POSITION_SCALE = 1.0
 
 // the camera was calibrated based on this fixed focus ring value, when the drone camera focus
 // ring value changes, it should be automatically reset to this value

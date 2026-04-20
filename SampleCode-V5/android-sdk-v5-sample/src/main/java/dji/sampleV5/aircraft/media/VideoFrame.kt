@@ -4,7 +4,8 @@ import java.lang.reflect.Method
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
 
-class VideoFrame (data: ByteArray, val length: Int, val width: Int, val height: Int, val format: Int) {
+class VideoFrame (data: ByteArray, val length: Int, val width: Int, val height: Int, val format:
+Int, val frameTimeStampInSeconds: Double = 0.0) {
 
     val buffer: ByteBuffer = ByteBuffer.allocateDirect(length)
 
