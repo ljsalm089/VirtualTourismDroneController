@@ -129,7 +129,7 @@ fun <T> CancellableContinuation<T>.safeResumeWithException(e: Exception) {
 class WebSocketOfferExchange(
     val scope: CoroutineScope,
     val intervalToKeepAlive: Long,
-    var headsetStatusCallBack: ((String, Any?) -> Unit)?,
+    var dataPublisherStatusCallBack: ((String, Any?) -> Unit)?,
 ) : WebSocketListener() {
 
     val TAG = "WebSocketOfferExchange"
@@ -145,6 +145,8 @@ class WebSocketOfferExchange(
     val VIDEO_PUBLISHER_DISPLAY = "DroneController"
 
     val DATA_PUBLISHER_ID = 987654321
+
+    val POSITION_PUBLISHER_ID = 123456788
 
     val DATA_PUBLISHER_DISPLAY = "Headset"
 
@@ -214,10 +216,10 @@ class WebSocketOfferExchange(
             if (event == data?.get("videoroom") && ROOM_ID == id) {
                 // right here, using Any to deserialize the json, 'unpublished' should be Double
                 val unpublishedId: Int = (data?.get("unpublished") as? Double?)?.toInt() ?: 0;
-                if (DATA_PUBLISHER_ID == unpublishedId) {
+                if (DATA_PUBLISHER_ID == unpublishedId || POSITION_PUBLISHER_ID == unpublishedId) {
                     scope.launch(Dispatchers.Main) {
                         // the headset went offline
-                        headsetStatusCallBack?.invoke(EVENT_HEADSET_OFFLINE, null)
+                        dataPublisherStatusCallBack?.invoke(if (DATA_PUBLISHER_ID == id) EVENT_HEADSET_OFFLINE else EVENT_DRONE_TRACKER_OFFLINE, null)
                     }
                 } else {
                     handleIfDataPublisherIsOnline(data)
@@ -235,19 +237,18 @@ class WebSocketOfferExchange(
                 val publisher: Map<String, *>? = tmp as? Map<String, *>
                 // TODO the type of id should be confirmed first, because of the way of deserialize json
                 val id: Int = (publisher?.get(FIELD_ID) as? Double?)?.toInt() ?: 0
-                if (DATA_PUBLISHER_ID == id) {
+                if (DATA_PUBLISHER_ID == id || POSITION_PUBLISHER_ID == id) {
                     val streams = publisher?.get("streams") as? Collection<*>
                     streams?.let {
                         for (item in it) {
                             val tmpItem = item as? MutableMap<String, Any?>
-                            if (null != tmpItem) tmpItem["feed"] = DATA_PUBLISHER_ID
+                            if (null != tmpItem) tmpItem["feed"] = id
                         }
                     }
                     scope.launch(Dispatchers.Main) {
                         // the headset is publishing data, make sure the invocation is on UI thread
-                        headsetStatusCallBack?.invoke(EVENT_HEADSET_ONLINE, streams)
+                        dataPublisherStatusCallBack?.invoke(if (DATA_PUBLISHER_ID == id) EVENT_HEADSET_ONLINE else EVENT_DRONE_TRACKER_ONLINE, streams)
                     }
-                    break
                 }
             }
         }
@@ -661,6 +662,7 @@ class WebSocketOfferExchange(
                 req.handleId = publishEndPoint.handleId!!.toLong()
                 val text = gson.toJson(req)
                 Log.d(TAG, "Add message to queue:\n$text")
+                socket.send(text)
             }
 
             req.janus = "detach"
@@ -697,7 +699,7 @@ class WebSocketOfferExchange(
 
         webSocket?.close(1000, "close the websocket actively")
         webSocket = null
-        headsetStatusCallBack = null
+        dataPublisherStatusCallBack = null
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {

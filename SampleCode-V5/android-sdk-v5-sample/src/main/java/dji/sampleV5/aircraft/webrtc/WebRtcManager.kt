@@ -2,12 +2,10 @@ package dji.sampleV5.aircraft.webrtc
 
 import android.app.Application
 import android.os.Looper
-import android.util.Log
 import com.google.gson.Gson
 import io.reactivex.rxjava3.subjects.PublishSubject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.webrtc.DataChannel
@@ -42,6 +40,8 @@ const val VIDEO_PUBLISHER = "videoPublisher"
 
 const val DATA_RECEIVER = "dataReceiver"
 
+const val POSITION_RECEIVER = "positionReceiver"
+
 const val STUN_SERVER = "stun:stun.l.google.com:19302"
 
 const val EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION = "create_connection_error"
@@ -56,7 +56,11 @@ const val EVENT_EXCHANGE_OFFER_SUCCESS_FOR_SUBSCRIPTION = "exchange_offer_succes
 
 const val EVENT_HEADSET_ONLINE = "headset_online"
 
+const val EVENT_DRONE_TRACKER_ONLINE = "drone_tracker_online"
+
 const val EVENT_HEADSET_OFFLINE = "headset_offline"
+
+const val EVENT_DRONE_TRACKER_OFFLINE = "drone_tracker_offline"
 
 const val EVENT_RECEIVED_DATA = "received_data"
 
@@ -103,19 +107,22 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
     private var mExChange: WebSocketOfferExchange? = null
 
-    private val headsetStatusCallBack: (String, Any?) -> Unit = { it, data ->
+    private val dataPublisherStatusCallback: (String, Any?) -> Unit = { it, data ->
         if (Looper.myLooper() != Looper.getMainLooper()) {
             scope.launch(Dispatchers.Main) {
-                handleHeadsetStatus(it, data)
+                handleDataPublisherStatus(it, data)
             }
         } else {
-            handleHeadsetStatus(it, data)
+            handleDataPublisherStatus(it, data)
         }
     }
 
-    private fun handleHeadsetStatus(event: String, data: Any?) {
-        if (connections.contains(VIDEO_PUBLISHER)) {
-            if (EVENT_HEADSET_ONLINE == event && !connections.contains(DATA_RECEIVER)) {
+    private fun handleDataPublisherStatus(event: String, data: Any?) {
+        if (connections.contains(VIDEO_PUBLISHER) && event in listOf(EVENT_HEADSET_ONLINE, EVENT_HEADSET_OFFLINE, EVENT_DRONE_TRACKER_ONLINE, EVENT_DRONE_TRACKER_OFFLINE)) {
+            val isOnlineEvent = listOf(EVENT_HEADSET_ONLINE, EVENT_DRONE_TRACKER_ONLINE).contains(event)
+            val key = if(listOf(EVENT_HEADSET_ONLINE, EVENT_HEADSET_OFFLINE).contains(event)) DATA_RECEIVER else POSITION_RECEIVER
+
+            if (isOnlineEvent && !connections.contains(key)) {
                 // create a connection for receiving data
                 val supportTypes = hashSetOf(
                     TYPE_DATA
@@ -138,17 +145,17 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
                 }
                 val conn = SubscriptionConnection(
-                    DATA_RECEIVER, supportTypes, subscribeOfferExchange,
+                    key, supportTypes, subscribeOfferExchange,
                     this, this, eglBase, scope
                 )
-                connections[DATA_RECEIVER] = conn
+                connections[key] = conn
                 conn.connect()
 
                 emit(WebRtcEvent(event, null))
-            } else if (EVENT_HEADSET_OFFLINE == event && connections.contains(DATA_RECEIVER)) {
+            } else if (!isOnlineEvent && connections.contains(key)) {
                 // destroy the connection for data receiving
-                connections[DATA_RECEIVER]?.disconnect()
-                connections.remove(DATA_RECEIVER)
+                connections[key]?.disconnect()
+                connections.remove(key)
                 mExChange?.stopSubscribe()
 
                 emit(WebRtcEvent(event, null))
@@ -169,7 +176,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
     }
 
     fun start() {
-        mExChange = WebSocketOfferExchange(scope, 5000L, headsetStatusCallBack)
+        mExChange = WebSocketOfferExchange(scope, 5000L, dataPublisherStatusCallback)
 
         // create a connection for publishing video
         val supportTypes = hashSetOf(

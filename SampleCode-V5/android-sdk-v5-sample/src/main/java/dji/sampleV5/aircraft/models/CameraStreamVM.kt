@@ -20,8 +20,9 @@ import dji.sampleV5.aircraft.USE_DRONE_CAMERA
 import dji.sampleV5.aircraft.USE_MOCK_CONTROL
 import dji.sampleV5.aircraft.data.Vector3D
 import dji.sampleV5.aircraft.media.DronePhotoCapturer
-import dji.sampleV5.aircraft.motiontracking.DjiMarkerTracker
 import dji.sampleV5.aircraft.motiontracking.DjiVSLamTracker
+import dji.sampleV5.aircraft.motiontracking.ObjectPose
+import dji.sampleV5.aircraft.motiontracking.RemotePoseTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
 import dji.sampleV5.aircraft.utils.toJson
@@ -44,6 +45,7 @@ import dji.sampleV5.aircraft.webrtc.EVENT_HEADSET_OFFLINE
 import dji.sampleV5.aircraft.webrtc.EVENT_HEADSET_ONLINE
 import dji.sampleV5.aircraft.webrtc.EVENT_LOG_MESSAGE
 import dji.sampleV5.aircraft.webrtc.EVENT_RECEIVED_DATA
+import dji.sampleV5.aircraft.webrtc.POSITION_RECEIVER
 import dji.sampleV5.aircraft.webrtc.VIDEO_PUBLISHER
 import dji.sampleV5.aircraft.webrtc.WebRtcEvent
 import dji.sampleV5.aircraft.webrtc.WebRtcManager
@@ -117,7 +119,8 @@ data class ControlStatusData(
     var benchmarkSampleTimestamp: Long = SystemClock.elapsedRealtime()
 )
 
-class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListener, OnRawDataObserver {
+class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListener,
+    OnRawDataObserver {
 
     private lateinit var webRtcManager: WebRtcManager
     private lateinit var eventDisposable: Disposable
@@ -151,7 +154,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
     private var motionTracker: DjiVSLamTracker? = null
 
-    private var markerTracker: DjiMarkerTracker? = null
+    private var remotePoseTracker: RemotePoseTracker? = null
 
     private var droneController: IDroneController? = null
 
@@ -162,7 +165,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     private var demoPathJob: Job? = null
 
     var focusRingValue = MutableLiveData<Int>(1)
-    var focusRingRange = MutableLiveData<Range<Int>> (Range(0, 100))
+    var focusRingRange = MutableLiveData<Range<Int>>(Range(0, 100))
 
     private val controllerStatusHandleScheduler =
         Executors.newSingleThreadExecutor().asCoroutineDispatcher()
@@ -230,15 +233,15 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 )
             }
 
-            markerTracker?.let { tracker ->
-                val position = tracker.getCurrentPosition()
-                val rotation = tracker.getCurrentRotation()
+            remotePoseTracker?.let { tracker ->
+                val position = tracker.getPosition()
+                val rotation = tracker.getRotation()
                 val state = tracker.getTrackingState().toString()
 
                 emitMonitorStatus(
                     mapOf(
-                        R.string.hint_drone_current_position_marker.idToString() to "${position[0].format()} / ${position[1].format()} / ${position[2].format()}",
-                        R.string.hint_drone_current_rotation_marker.idToString() to "${rotation[0].format()} / ${rotation[1].format()} / ${rotation[2].format()}",
+                        R.string.hint_drone_current_position_marker.idToString() to "${position.x.format()} / ${position.y.format()} / ${position.x.format()}",
+                        R.string.hint_drone_current_rotation_marker.idToString() to "${rotation.y.format()} / ${rotation.x.format()} / ${rotation.z.format()}",
                         R.string.hint_drone_tracking_state_marker.idToString() to state
                     )
                 )
@@ -280,14 +283,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         statusMonitor?.register(DJICameraKey.KeyCameraFocusRingValue, this)
 
         if (null == motionTracker) {
-            markerTracker = DjiMarkerTracker(TARGET_VIDEO_FRAME_SIZE, Dispatchers.IO, viewModelScope)
-            val markerTrackerConfigFile = File(application.filesDir, "marker_tracker.yaml")
-            if (markerTrackerConfigFile.exists()) {
-                markerTrackerConfigFile.delete()
-            }
-            copyFileFromRaw("marker_tracker.yaml", markerTrackerConfigFile.absolutePath)
-            markerTracker?.initialize(markerTrackerConfigFile.absolutePath)
-
             // initialize the tracker first, the target size need to be adjusted based on the real resolution of the video
             motionTracker = DjiVSLamTracker(
                 TARGET_VIDEO_FRAME_SIZE,
@@ -312,7 +307,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         motionTracker?.startup()
         motionTracker?.setMappingModule(true)
 
-        markerTracker?.startup()
+        if (null == remotePoseTracker) {
+            remotePoseTracker = RemotePoseTracker(statusMonitor!!, Dispatchers.IO, viewModelScope)
+        }
+        remotePoseTracker?.start()
 
         photoCapturer.startup()
 
@@ -342,9 +340,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         motionTracker?.destroy()
         motionTracker = null
 
-        markerTracker?.shutdown()
-        markerTracker?.destroy()
-        markerTracker = null
+        remotePoseTracker?.stop()
+        remotePoseTracker = null
 
         audioSource?.dispose()
         videoCapturer?.stopCapture()
@@ -431,7 +428,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         when (direction) {
             R.id.btn_forward -> { // forward // North
                 showMessageOnLogAndScreen(Log.DEBUG, "Press forward")
-                controlData.currentPosition.y = - 0.2f
+                controlData.currentPosition.y = -0.2f
             }
 
             R.id.btn_backward -> { // backward
@@ -470,7 +467,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             }
 
             R.id.btn_demo_flight_path -> {
-                viewModelScope.launch (Dispatchers.Main) {
+                viewModelScope.launch(Dispatchers.Main) {
                     demoPathJob?.apply {
                         if (isActive) {
                             cancelAndJoin()
@@ -514,10 +511,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     val buffer = ByteArray(size)
                     inputStream.read(buffer)
                     val jsonString = String(buffer, Charsets.UTF_8)
-                    
+
                     val listType = object : TypeToken<List<ControlStatusData>>() {}.type
                     val tmp: List<ControlStatusData> = gson.fromJson(jsonString, listType)
-                    
+
                     showMessageOnLogAndScreen(Log.INFO, "Loaded demo path with ${tmp.size} points")
 
                     tmp
@@ -542,8 +539,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     override fun invoke(p1: DJIKeyInfo<*>, p2: Any?) {
         if (p1.innerIdentifier == DJICameraKey.KeyCameraFocusRingValue.innerIdentifier && p2 != TARGET_FOCUS_RING_VALUE) {
             Timber.d("Reset the focus ring value to $TARGET_FOCUS_RING_VALUE")
-            showMessageOnLogAndScreen(Log.ERROR, "Drone camera focus ring value changes: $p2, reset" +
-                    " it to $TARGET_FOCUS_RING_VALUE", null)
+            showMessageOnLogAndScreen(
+                Log.ERROR, "Drone camera focus ring value changes: $p2, reset" +
+                        " it to $TARGET_FOCUS_RING_VALUE", null
+            )
             KeyTools.createKey(DJICameraKey.KeyCameraFocusRingValue).set(TARGET_FOCUS_RING_VALUE)
         }
     }
@@ -617,6 +616,10 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     droneController?.onControllerStatusData(statusData)
                 }
             }
+        } else if (POSITION_RECEIVER == data.identity) {
+            // in theory, position tracker only support one form of data
+            val objectPose = gson.fromJson(data.data, ObjectPose::class.java)
+            remotePoseTracker?.updatePose(objectPose)
         }
     }
 
@@ -901,15 +904,5 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         // don't log the simulator state into logcat or file, because it is very frequent while in the simulator mode (everything is too ideal)
 //        Timber.d("Simulator mode status: $simulatorState")
         emitMonitorStatus(mapOf(R.string.hint_simulator_state.idToString() to simulatorState))
-    }
-
-
-    override fun invoke(p1: DJIKeyInfo<*>, p2: Any?) {
-        if (p1.innerIdentifier == DJICameraKey.KeyCameraFocusRingValue.innerIdentifier && p2 != TARGET_FOCUS_RING_VALUE) {
-            Timber.d("Reset the focus ring value to $TARGET_FOCUS_RING_VALUE")
-            showMessageOnLogAndScreen(Log.ERROR, "Drone camera focus ring value changes: $p2, reset" +
-                    " it to $TARGET_FOCUS_RING_VALUE", null)
-            KeyTools.createKey(DJICameraKey.KeyCameraFocusRingValue).set(TARGET_FOCUS_RING_VALUE)
-        }
     }
 }
