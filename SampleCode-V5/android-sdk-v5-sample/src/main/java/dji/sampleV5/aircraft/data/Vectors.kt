@@ -32,4 +32,16 @@ data class Vector3D(var x: Float, var y: Float, var z: Float) {
     override fun toString(): String {
         return "{x: ${x.format()}, y: ${y.format()}, z: ${z.format()}}"
     }
+
+    fun toArray(): FloatArray {
+        return floatArrayOf(x, y, z)
+    }
+
+    fun toDoubleArray(): DoubleArray {
+        return doubleArrayOf(x.toDouble(), y.toDouble(), z.toDouble())
+    }
+
+    companion object {
+        fun from(data: FloatArray): Vector3D = Vector3D(data[0], data[1], data[2])
+    }
 }

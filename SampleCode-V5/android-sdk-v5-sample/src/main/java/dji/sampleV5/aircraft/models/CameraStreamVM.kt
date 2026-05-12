@@ -310,7 +310,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         if (null == remotePoseTracker) {
             remotePoseTracker = RemotePoseTracker(statusMonitor!!, Dispatchers.IO, viewModelScope)
         }
-        remotePoseTracker?.start()
+        remotePoseTracker?.startup()
 
         photoCapturer.startup()
 
@@ -340,7 +340,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         motionTracker?.destroy()
         motionTracker = null
 
-        remotePoseTracker?.stop()
+        remotePoseTracker?.shutdown()
         remotePoseTracker = null
 
         audioSource?.dispose()
@@ -379,7 +379,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 VirtualDroneController(
                     viewModelScope,
                     this::controlStatusFeedback,
-                    motionTracker!!,
+                    // TODO replace the trackers with different strategies for test
+//                    motionTracker!!,
+                    remotePoseTracker!!,
                     statusMonitor!!,
                     this::showMessageOnLogAndScreen
                 )
@@ -619,7 +621,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         } else if (POSITION_RECEIVER == data.identity) {
             // in theory, position tracker only support one form of data
             val objectPose = gson.fromJson(data.data, ObjectPose::class.java)
-            remotePoseTracker?.updatePose(objectPose)
+            // no matter what status this tracker is,
+            // just pass the data to it and let it decide how to deal with this data
+            remotePoseTracker?.feedFrame(objectPose)
         }
     }
 
