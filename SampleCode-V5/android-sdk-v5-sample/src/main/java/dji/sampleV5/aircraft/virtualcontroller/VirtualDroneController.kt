@@ -38,8 +38,6 @@ interface IDroneController {
 
     suspend fun landOff()
 
-    fun riseAndSetGimbal(angle: Double)
-
     suspend fun onControllerStatusData(data: ControlStatusData)
 
     suspend fun destroy()
@@ -106,8 +104,6 @@ class MockDroneController(
     override suspend fun destroy() {
     }
 
-    override fun riseAndSetGimbal(angle: Double) {
-    }
 }
 
 class VirtualDroneController(
@@ -261,7 +257,7 @@ class VirtualDroneController(
 
     override suspend fun landOff() {
         Timber.d("Start to land off the drone.")
-        KeyTools.createKey(FlightControllerKey.KeyStartAutoLanding).action()
+        drone.landOff()
     }
 
     override suspend fun destroy() {
@@ -270,10 +266,6 @@ class VirtualDroneController(
         }
         drone.setGimbalModel(false)
         drone.setAutomaticControl(false)
-    }
-
-    override fun riseAndSetGimbal(angle: Double) {
-
     }
 
 }

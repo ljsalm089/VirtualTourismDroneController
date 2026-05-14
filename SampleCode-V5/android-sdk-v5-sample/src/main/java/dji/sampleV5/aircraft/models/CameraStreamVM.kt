@@ -325,8 +325,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
         webRtcManager.stop()
 
-        statusMonitor?.unregister(DJICameraKey.KeyCameraFocusRingValue, this)
-
         motionTracker?.shutdown()
         motionTracker?.destroy()
         motionTracker = null
