@@ -26,13 +26,13 @@ import dji.sampleV5.aircraft.motiontracking.RemotePoseTracker
 import dji.sampleV5.aircraft.utils.format
 import dji.sampleV5.aircraft.utils.toData
 import dji.sampleV5.aircraft.utils.toJson
+import dji.sampleV5.aircraft.virtualcontroller.DjiDrone
 import dji.sampleV5.aircraft.virtualcontroller.DroneStatusMonitor
 import dji.sampleV5.aircraft.virtualcontroller.IDroneController
 import dji.sampleV5.aircraft.virtualcontroller.MockDroneController
 import dji.sampleV5.aircraft.virtualcontroller.OnRawDataObserver
 import dji.sampleV5.aircraft.virtualcontroller.VirtualDroneController
 import dji.sampleV5.aircraft.virtualcontroller.adjustCameraOrientation
-import dji.sampleV5.aircraft.virtualcontroller.setGimbalMode
 import dji.sampleV5.aircraft.webrtc.ConnectionInfo
 import dji.sampleV5.aircraft.webrtc.DATA_RECEIVER
 import dji.sampleV5.aircraft.webrtc.DJIVideoCapturer
@@ -318,18 +318,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
         isDroneControlling.postValue(false)
 
         statusMonitor?.register(DJICameraKey.KeyCameraFocusRingValue, this)
-
-        viewModelScope.launch(Dispatchers.IO) {
-            if (setGimbalMode(true, this@CameraStreamVM::showMessageOnLogAndScreen)) {
-                adjustCameraOrientation(0.0, 0.0, 40.0)
-            }
-        }
     }
 
     fun stopPublish() {
-        viewModelScope.launch(Dispatchers.IO) {
-            setGimbalMode(false, this@CameraStreamVM::showMessageOnLogAndScreen)
-        }
         statusMonitor?.unregister(DJICameraKey.KeyCameraFocusRingValue, this)
 
         webRtcManager.stop()
@@ -382,7 +373,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     // TODO replace the trackers with different strategies for test
 //                    motionTracker!!,
                     remotePoseTracker!!,
-                    statusMonitor!!,
+                    DjiDrone(viewModelScope, Dispatchers.IO, statusMonitor!!, this::controlStatusFeedback, this::showMessageOnLogAndScreen),
                     this::showMessageOnLogAndScreen
                 )
 
