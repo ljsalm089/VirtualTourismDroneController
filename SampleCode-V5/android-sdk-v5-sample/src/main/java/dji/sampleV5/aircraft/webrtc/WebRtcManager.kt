@@ -387,6 +387,7 @@ abstract class BaseWebRtcConnection (
     abstract fun getConnectionEvent(success: Boolean) : String
 
     private fun onReceivedDataChannel(channel: DataChannel) {
+        Timber.d("Received data channel (${channel.label()}) from connection: ${this.connection}")
         if (receivedChannels.contains(channel.label())) return
 
         receivedChannels[channel.label()] = channel

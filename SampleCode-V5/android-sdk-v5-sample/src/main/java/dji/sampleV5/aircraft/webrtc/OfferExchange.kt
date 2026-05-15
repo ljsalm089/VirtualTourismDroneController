@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
+import dji.sampleV5.aircraft.utils.toJson
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import timber.log.Timber
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Proxy
@@ -43,8 +45,8 @@ private const val VIDEO_ROOM_PLUGIN = "janus.plugin.videoroom"
 
 private const val iceServerUrl = "stun:stun.l.google.com:1930";
 
-//private const val wsServerProtocolAndHostPort = "ws://10.112.53.217:8188"
-private const val wsServerProtocolAndHostPort = "ws://192.168.0.134:8188"
+private const val wsServerProtocolAndHostPort = "ws://10.51.6.38:8188"
+//private const val wsServerProtocolAndHostPort = "ws://192.168.0.134:8188"
 
 private const val needProxy = false
 
@@ -217,6 +219,7 @@ class WebSocketOfferExchange(
                 // right here, using Any to deserialize the json, 'unpublished' should be Double
                 val unpublishedId: Int = (data?.get("unpublished") as? Double?)?.toInt() ?: 0;
                 if (DATA_PUBLISHER_ID == unpublishedId || POSITION_PUBLISHER_ID == unpublishedId) {
+                    Timber.tag(TAG).d("Received the message regarding somebody leaving the video room: $unpublishedId")
                     scope.launch(Dispatchers.Main) {
                         // the headset went offline
                         dataPublisherStatusCallBack?.invoke(if (DATA_PUBLISHER_ID == id) EVENT_HEADSET_OFFLINE else EVENT_DRONE_TRACKER_OFFLINE, null)
@@ -229,6 +232,7 @@ class WebSocketOfferExchange(
     }
 
     private fun handleIfDataPublisherIsOnline(data: Map<String, Any?>?) {
+        Timber.tag(TAG).d("Check if the desired publishers is in the room or not")
         if (data?.get("publishers") is Collection<*>) {
             val publishers: Collection<*> =
                 data["publishers"] as Collection<*>
@@ -245,6 +249,9 @@ class WebSocketOfferExchange(
                             if (null != tmpItem) tmpItem["feed"] = id
                         }
                     }
+
+                    Timber.tag(TAG).i("The desired publisher is already in the video room: $id")
+                    Timber.tag(TAG).i("Obtain the stream info from this publisher: ${streams?.toJson()}");
                     scope.launch(Dispatchers.Main) {
                         // the headset is publishing data, make sure the invocation is on UI thread
                         dataPublisherStatusCallBack?.invoke(if (DATA_PUBLISHER_ID == id) EVENT_HEADSET_ONLINE else EVENT_DRONE_TRACKER_ONLINE, streams)
@@ -274,7 +281,7 @@ class WebSocketOfferExchange(
             scope.launch(Dispatchers.IO) {
                 val text: String = gson.toJson(req)
                 waitingTransactions[transaction] = it
-                Log.d(TAG, "Add message to queue: $text")
+                Timber.tag(TAG).d("Add message to queue: $text")
                 if (webSocket!!.send(text)) {
                     delay(TIMEOUT_INTERVAL)
 
@@ -307,7 +314,7 @@ class WebSocketOfferExchange(
 
                                 publishEndPoint.sessionId?.apply {
                                     keepAliveReq.sessionId = this.toLong()
-                                    Log.d(TAG, "sending keep alive package to janus: $this")
+                                    Timber.tag(TAG).d("sending keep alive package to janus: $this")
                                     this@WebSocketOfferExchange.webSocket?.send(
                                         gson.toJson(
                                             keepAliveReq
@@ -317,7 +324,7 @@ class WebSocketOfferExchange(
 
                                 subscribeEndPoint.sessionId?.apply {
                                     keepAliveReq.sessionId = this.toLong()
-                                    Log.d(TAG, "sending keep alive package to janus: $this")
+                                    Timber.tag(TAG).d("sending keep alive package to janus: $this")
                                     this@WebSocketOfferExchange.webSocket?.send(
                                         gson.toJson(
                                             keepAliveReq
@@ -569,7 +576,7 @@ class WebSocketOfferExchange(
                 Pair("room", ROOM_ID),
                 Pair("pin", ROOM_PIN),
                 Pair("feed", DATA_PUBLISHER_ID),
-                Pair("audoupdate", false),
+                Pair("autoupdate", false),
             )
             data?.let { tmp_data ->
                 body.put("streams", tmp_data)
@@ -618,6 +625,7 @@ class WebSocketOfferExchange(
 
         if ("ok" == pluginResp.plugindata?.data?.get("started")?.toString()) {
             // successfully upload local offer to remote server
+            Timber.tag(TAG).d("Successfully upload the local answer to the server for p2p connection establishment")
         } else {
             throw Exception("Unhandled situation!!!")
         }
