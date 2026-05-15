@@ -222,7 +222,7 @@ class WebSocketOfferExchange(
                     Timber.tag(TAG).d("Received the message regarding somebody leaving the video room: $unpublishedId")
                     scope.launch(Dispatchers.Main) {
                         // the headset went offline
-                        dataPublisherStatusCallBack?.invoke(if (DATA_PUBLISHER_ID == id) EVENT_HEADSET_OFFLINE else EVENT_DRONE_TRACKER_OFFLINE, null)
+                        dataPublisherStatusCallBack?.invoke(if (DATA_PUBLISHER_ID == unpublishedId) EVENT_HEADSET_OFFLINE else EVENT_DRONE_TRACKER_OFFLINE, null)
                     }
                 } else {
                     handleIfDataPublisherIsOnline(data)

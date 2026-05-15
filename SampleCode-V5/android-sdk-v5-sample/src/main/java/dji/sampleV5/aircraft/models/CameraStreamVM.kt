@@ -39,6 +39,8 @@ import dji.sampleV5.aircraft.webrtc.DJIVideoCapturer
 import dji.sampleV5.aircraft.webrtc.DataFromChannel
 import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_ERROR_FOR_PUBLICATION
 import dji.sampleV5.aircraft.webrtc.EVENT_CREATE_CONNECTION_SUCCESS_FOR_PUBLICATION
+import dji.sampleV5.aircraft.webrtc.EVENT_DRONE_TRACKER_OFFLINE
+import dji.sampleV5.aircraft.webrtc.EVENT_DRONE_TRACKER_ONLINE
 import dji.sampleV5.aircraft.webrtc.EVENT_EXCHANGE_OFFER_ERROR_FOR_PUBLICATION
 import dji.sampleV5.aircraft.webrtc.EVENT_EXCHANGE_OFFER_SUCCESS_FOR_PUBLICATION
 import dji.sampleV5.aircraft.webrtc.EVENT_HEADSET_OFFLINE
@@ -674,6 +676,12 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             // headset is offline now
             showMessageOnLogAndScreen(Log.INFO, "The headset is offline now.")
 
+        }
+        eventHandles[EVENT_DRONE_TRACKER_ONLINE] = {
+            showMessageOnLogAndScreen(Log.INFO, "Drone pose tracker is online now.")
+        }
+        eventHandles[EVENT_DRONE_TRACKER_OFFLINE] = {
+            showMessageOnLogAndScreen(Log.INFO, "Drone pose tracker is offline now.")
         }
         eventHandles[EVENT_LOG_MESSAGE] = {
             (it.data as? Pair<*, *>)?.let { data ->
