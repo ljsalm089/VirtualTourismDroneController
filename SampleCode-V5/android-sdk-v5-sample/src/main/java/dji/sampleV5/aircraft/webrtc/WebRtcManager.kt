@@ -71,6 +71,7 @@ const val KEEP_ALIVE_INTERVAL = 1000L
 const val FROM_DRONE = "Drone"
 
 
+
 data class WebRtcEvent(val event: String, val data: Any?)
 
 data class ConnectionInfo(
@@ -96,6 +97,8 @@ interface IConnectionFactoryProvider {
 
 class WebRtcManager(private val scope: CoroutineScope, private val application: Application) :
     IWebRtcEventEmitter, IConnectionFactoryProvider {
+
+    val TAG = "WebRtcManager"
 
     val webRtcEventObservable = PublishSubject.create<WebRtcEvent>()
 
@@ -144,6 +147,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
                     }
 
                 }
+                Timber.tag(TAG).d("Start build the connection for subscription because of the event: $event")
                 val conn = SubscriptionConnection(
                     key, supportTypes, subscribeOfferExchange,
                     this, this, eglBase, scope
@@ -153,6 +157,7 @@ class WebRtcManager(private val scope: CoroutineScope, private val application: 
 
                 emit(WebRtcEvent(event, null))
             } else if (!isOnlineEvent && connections.contains(key)) {
+                Timber.tag(TAG).d("Close the connection for subscription because of the event: $event")
                 // destroy the connection for data receiving
                 connections[key]?.disconnect()
                 connections.remove(key)
@@ -266,6 +271,8 @@ abstract class BaseWebRtcConnection (
     protected val receivedChannels: HashMap<String, DataChannel> = HashMap()
     protected val dataObservers: HashMap<String, DataChannel.Observer> = HashMap()
     protected var transmitDataChannel: DataChannel? = null
+
+    val TAG = "BaseWebRtcConnection"
 
 
     open fun sendData(data: MutableMap<String, Any?>) {
@@ -387,18 +394,24 @@ abstract class BaseWebRtcConnection (
     abstract fun getConnectionEvent(success: Boolean) : String
 
     private fun onReceivedDataChannel(channel: DataChannel) {
-        Timber.d("Received data channel (${channel.label()}) from connection: ${this.connection}")
+        Timber.tag(TAG).d("Received data channel (${channel.label()}) from connection: ${this
+            .connection}")
         if (receivedChannels.contains(channel.label())) return
 
         receivedChannels[channel.label()] = channel
 
         val dataObserver = object : DataChannel.Observer {
             override fun onBufferedAmountChange(p0: Long) {
-                Timber.d("onBufferedAmountChange: $p0")
+                Timber.tag(TAG).d("onBufferedAmountChange: $p0")
             }
 
             override fun onStateChange() {
-                Timber.d("onStateChange: ${channel.state()}")
+                val state = channel.state()
+                Timber.tag(TAG).d("onStateChange: $state")
+                if (state == DataChannel.State.CLOSING || state == DataChannel.State.CLOSED) {
+                    channel.unregisterObserver()
+                    receivedChannels.remove(channel.label())
+                }
             }
 
             override fun onMessage(p0: DataChannel.Buffer?) {
@@ -407,7 +420,8 @@ abstract class BaseWebRtcConnection (
                     val byteArray = ByteArray(it.data.remaining())
                     it.data.get(byteArray)
                     val message = byteArray.decodeToString()
-                    Timber.d("Got message from channel: ${identity}.${channel.label()}: $message")
+                    Timber.tag(TAG).d("Got message from channel: ${identity}.${channel.label()}: " +
+                            "$message")
 
                     eventEmitter.emit(
                         WebRtcEvent(
