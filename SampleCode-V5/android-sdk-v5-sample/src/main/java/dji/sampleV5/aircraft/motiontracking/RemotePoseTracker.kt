@@ -22,9 +22,9 @@ import org.opencv.core.CvType
 import org.opencv.core.Mat
 
 data class Orientation(
-    val roll: Float,
-    val pitch: Float,
-    val yaw: Float
+    val roll: Float = 0f,
+    val pitch: Float = 0f,
+    val yaw: Float = 0f
 )
 
 data class ObjectPose(
@@ -56,7 +56,7 @@ class RemotePoseTracker(
 
     private val gimbalAttitude = DoubleArray(2)
 
-    private var lastPose: ObjectPose? = null
+    private var lastPose: ObjectPose? = ObjectPose(Vector3D(), Orientation(), SystemClock.elapsedRealtime())
 
     private var relativePose: Mat = Mat.eye(4, 4, CvType.CV_64F)
 
@@ -67,15 +67,15 @@ class RemotePoseTracker(
     private var job: Job? = null
 
     // only for cache
-    private val tmpRVec: Mat = Mat(1, 3, CvType.CV_64F)
-    private val tmpTVec = Mat(1, 3, CvType.CV_64F)
+    private val tmpRVec: Mat = Mat(3, 1, CvType.CV_64F)
+    private val tmpTVec = Mat(3, 1, CvType.CV_64F)
     private val tmpR = Mat(3, 3, CvType.CV_64F)
-    private val tmpPose = Mat.eye(4, 4, CvType.CV_32F)
+    private val tmpPose = Mat.eye(4, 4, CvType.CV_64F)
 
     override fun getPosition(): Vector3D {
         // obtain current virtual marker pose, ignore its orientation
-        tmpTVec.put(0, 0, lastPose!!.position.toArray())
-        tmpRVec.put(0, 0, floatArrayOf(0f, 0f, 0f))
+        tmpTVec.put(0, 0, *lastPose!!.position.toDoubleArray())
+        tmpRVec.put(0, 0, *doubleArrayOf(0.0, 0.0, 0.0))
 
         Calib3d.Rodrigues(tmpRVec, tmpR)
         tmpR.copyTo(tmpPose.submat(0, 3, 0, 3))
@@ -111,22 +111,22 @@ class RemotePoseTracker(
                     benchmarkCompassAngle = currentCompassAngle
                     benchmarkPosition = lastPose!!.position
 
-                    val tvec = Mat(1, 3, CvType.CV_32F)
-                    tvec.put(0, 0, lastPose!!.position.toArray())
+                    val tvec = Mat(3, 1, CvType.CV_64F)
+                    tvec.put(0, 0, *lastPose!!.position.toDoubleArray())
 
-                    val rvec = Mat(1, 3, CvType.CV_32F);
+                    val rvec = Mat(3, 1, CvType.CV_64F);
                     rvec.put(
                         0,
                         0,
-                        floatArrayOf(0f, 0f, Math.toRadians(angleBetweenMarkers).toFloat())
+                        *doubleArrayOf(0.0, 0.0, Math.toRadians(angleBetweenMarkers))
                     )
 
-                    val r = Mat(3, 3, CvType.CV_32F)
-                    val currentPose = Mat.eye(4, 4, CvType.CV_32F)
+                    val r = Mat(3, 3, CvType.CV_64F)
+                    val currentPose = Mat.eye(4, 4, CvType.CV_64F)
 
                     Calib3d.Rodrigues(rvec, r)
                     r.copyTo(currentPose.submat(0, 3, 0, 3))
-                    tmpTVec.copyTo(currentPose.submat(0, 3, 3, 4))
+                    tvec.copyTo(currentPose.submat(0, 3, 3, 4))
 
                     relativePose = currentPose.inv()
                 }

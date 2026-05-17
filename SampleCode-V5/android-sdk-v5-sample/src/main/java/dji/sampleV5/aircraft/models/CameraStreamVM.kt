@@ -234,28 +234,6 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                     )
                 )
             }
-
-            remotePoseTracker?.let { tracker ->
-                val position = tracker.getPosition()
-                val rotation = tracker.getRotation()
-                val state = tracker.getTrackingState().toString()
-
-                emitMonitorStatus(
-                    mapOf(
-                        R.string.hint_drone_current_position_marker.idToString() to "${position.x.format()} / ${position.y.format()} / ${position.x.format()}",
-                        R.string.hint_drone_current_rotation_marker.idToString() to "${rotation.y.format()} / ${rotation.x.format()} / ${rotation.z.format()}",
-                        R.string.hint_drone_tracking_state_marker.idToString() to state
-                    )
-                )
-            } ?: run {
-                emitMonitorStatus(
-                    mapOf(
-                        R.string.hint_drone_current_position_marker.idToString() to "-/-/-",
-                        R.string.hint_drone_current_rotation_marker.idToString() to "-/-/-",
-                        R.string.hint_drone_tracking_state_marker.idToString() to "-"
-                    )
-                )
-            }
         }
         statusMonitor?.startMonitoring()
 
@@ -582,8 +560,8 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
     }
 
     private fun onReceivedData(data: DataFromChannel) {
+        val rootMessage = gson.fromJson(data.data, RootMessage::class.java)
         if (DATA_RECEIVER == data.identity) {
-            val rootMessage = gson.fromJson(data.data, RootMessage::class.java)
             if ("Ping".equals(rootMessage?.type, true)) {
                 webRtcManager.sendData(rootMessage.data, "Pong")
             } else if ("Pong".equals(rootMessage?.type, true)) {
@@ -610,11 +588,15 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 }
             }
         } else if (POSITION_RECEIVER == data.identity) {
-            // in theory, position tracker only support one form of data
-            val objectPose = gson.fromJson(data.data, ObjectPose::class.java)
-            // no matter what status this tracker is,
-            // just pass the data to it and let it decide how to deal with this data
-            remotePoseTracker?.feedFrame(objectPose)
+            if ("Pose".equals(rootMessage?.type, true)) {
+                // in theory, position tracker only support one form of data
+                val objectPose = gson.fromJson(rootMessage.data, ObjectPose::class.java)
+                // no matter what status this tracker is,
+                // just pass the data to it and let it decide how to deal with this data
+                remotePoseTracker?.feedFrame(objectPose)
+            } else if ("Ping".equals(rootMessage?.type, true)) {
+                // ignore this type of message
+            }
         }
     }
 
@@ -720,6 +702,28 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                         R.string.hint_fetch_video.idToString() to it.fetchFrameRate().toString()
                     emitMonitorStatus(mapOf(result))
                     Timber.i("${result.first} --> ${result.second}}")
+                }
+
+                remotePoseTracker?.let { tracker ->
+                    val position = tracker.getPosition()
+                    val rotation = tracker.getRotation()
+                    val state = tracker.getTrackingState().toString()
+
+                    emitMonitorStatus(
+                        mapOf(
+                            R.string.hint_drone_current_position_marker.idToString() to "${position.x.format()} / ${position.y.format()} / ${position.x.format()}",
+                            R.string.hint_drone_current_rotation_marker.idToString() to "${rotation.y.format()} / ${rotation.x.format()} / ${rotation.z.format()}",
+                            R.string.hint_drone_tracking_state_marker.idToString() to state
+                        )
+                    )
+                } ?: run {
+                    emitMonitorStatus(
+                        mapOf(
+                            R.string.hint_drone_current_position_marker.idToString() to "-/-/-",
+                            R.string.hint_drone_current_rotation_marker.idToString() to "-/-/-",
+                            R.string.hint_drone_tracking_state_marker.idToString() to "-"
+                        )
+                    )
                 }
             }
         }
