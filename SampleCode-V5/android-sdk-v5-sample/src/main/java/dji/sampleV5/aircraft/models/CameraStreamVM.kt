@@ -711,7 +711,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
 
                     emitMonitorStatus(
                         mapOf(
-                            R.string.hint_drone_current_position_marker.idToString() to "${position.x.format()} / ${position.y.format()} / ${position.x.format()}",
+                            R.string.hint_drone_current_position_marker.idToString() to "${position.x.format()} / ${position.y.format()} / ${position.z.format()}",
                             R.string.hint_drone_current_rotation_marker.idToString() to "${rotation.y.format()} / ${rotation.x.format()} / ${rotation.z.format()}",
                             R.string.hint_drone_tracking_state_marker.idToString() to state
                         )
