@@ -150,8 +150,6 @@ class VirtualDroneController(
             stopSynchronizationJobs()
             // INFO reset the existing velocity in every direction, reset the gimbal angle to origin
             drone.adjustDroneVelocityOneTime(0.0, 0.0, 0.0, null)
-            // disable advanced virtual stick control
-            VirtualStickManager.getInstance().setVirtualStickAdvancedModeEnabled(false)
             // disable virtual stick control
             drone.setAutomaticControl(false)
             positionMonitor.stop()
@@ -183,7 +181,7 @@ class VirtualDroneController(
         // TODO neglect the direction first, only care about the position changes
         val dronePos = positionMonitor.getPosition()
         val droneAttitudeInDegrees = positionMonitor.getRotation().y.toDouble()
-        val droneAttitudeInRadians = droneAttitudeInDegrees.degreesToRadians()
+        val droneAttitudeInRadians = Math.toRadians(droneAttitudeInDegrees)
 
         Timber.i("From position $dronePos to target $targetPosition")
         Timber.i("From attitude: ${droneAttitudeInDegrees.format()} to target: ${targetRotation.y.format()}")

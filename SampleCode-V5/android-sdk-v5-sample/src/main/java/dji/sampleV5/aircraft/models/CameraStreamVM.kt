@@ -591,6 +591,7 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
             if ("Pose".equals(rootMessage?.type, true)) {
                 // in theory, position tracker only support one form of data
                 val objectPose = gson.fromJson(rootMessage.data, ObjectPose::class.java)
+                objectPose.localTimestamp = SystemClock.elapsedRealtime()
                 // no matter what status this tracker is,
                 // just pass the data to it and let it decide how to deal with this data
                 remotePoseTracker?.feedFrame(objectPose)
@@ -705,8 +706,9 @@ class CameraStreamVM : ViewModel(), Consumer<WebRtcEvent>, SimulatorStatusListen
                 }
 
                 remotePoseTracker?.let { tracker ->
-                    val position = tracker.getPosition()
-                    val rotation = tracker.getRotation()
+                    val pose = tracker.getPose()
+                    val position = pose[0]
+                    val rotation = pose[1]
                     val state = tracker.getTrackingState().toString()
 
                     emitMonitorStatus(

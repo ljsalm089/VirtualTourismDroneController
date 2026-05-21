@@ -110,8 +110,8 @@ internal fun adjustCameraOrientation(pitch: Double, roll: Double, duration: Doub
  * calculate the shortest angle starts from the original angle to the target angle.
  * positive means change in clockwise direction; negative means change in counterclockwise direction
  *
- * @param originAngle the original angle
- * @param targetAngle the target angle
+ * @param originAngle the original angle, range from -180 to 180
+ * @param targetAngle the target angle, range from -180 to 180
  *
  * @return range from -180 to 180
  */
