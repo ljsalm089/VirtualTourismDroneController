@@ -125,7 +125,9 @@ class RemotePoseTracker(
                 Vector3D(
                     gimbalAttitude[0].toFloat(),
                     gimbalAttitude[1].toFloat(),
-                    Math.toDegrees(tmpRVec.get(2, 0)[0]).toFloat()
+                    // INFO for OpenCV: the angle decreases when the X–Y plane rotates in the clockwise direction.
+                    // but the compass value increases when the drone in the clockwise direction (see from upward direction of the drone)
+                    - Math.toDegrees(tmpRVec.get(2, 0)[0]).toFloat()
                 )
             )
         } ?: arrayOf(Vector3D(), Vector3D())
@@ -216,6 +218,8 @@ class RemotePoseTracker(
             }
         } else if (p1.innerIdentifier == attitudeKey.innerIdentifier) {
             (p2 as? Attitude)?.let {
+                // INFO from Dji SDK documentation:
+                // The yaw value of the aircraft, where 0 corresponds to a True North heading. Yawing clockwise will increase yaw value.
                 currentCompassAngle = it.yaw.toDouble()
 
                 synchronizeDronePostureAndTrackingSystem()

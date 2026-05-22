@@ -134,10 +134,12 @@ class VirtualDroneController(
 
     override suspend fun switchDroneStatus(isReady: Boolean) {
         if (isReady) {
+            // clean up old synchronization task
+            stopSynchronizationJobs()
+
             if (ONLY_OBSERVE_POSITION_CHANGE || drone.setAutomaticControl(true)) {
                 positionMonitor.start()
                 super.switchDroneStatus(true)
-
                 // INFO launch periodic task to synchronize drone posture to the headset
                 synchronizationJob = launchSynchronizationJob()
             } else {
@@ -149,7 +151,7 @@ class VirtualDroneController(
             // INFO cancel periodic task
             stopSynchronizationJobs()
             // INFO reset the existing velocity in every direction, reset the gimbal angle to origin
-            drone.adjustDroneVelocityOneTime(0.0, 0.0, 0.0, null)
+            drone.reset()
             // disable virtual stick control
             drone.setAutomaticControl(false)
             positionMonitor.stop()
@@ -234,6 +236,7 @@ class VirtualDroneController(
 
     private fun stopSynchronizationJobs() {
         synchronizationJob?.cancel()
+        synchronizationJob = null
     }
 
     override suspend fun onControllerStatusData(data: ControlStatusData) {

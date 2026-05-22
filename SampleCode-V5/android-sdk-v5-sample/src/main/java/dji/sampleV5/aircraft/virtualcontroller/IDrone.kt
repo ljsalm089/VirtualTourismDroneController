@@ -74,6 +74,11 @@ interface IDrone {
      */
     suspend fun adjustCameraOrientation(pitch: Double, roll: Double, duration: Double)
 
+    /**
+     * clear all the velocities in all directions, make the drone stay still
+     */
+    suspend fun reset()
+
     fun destroy()
 }
 
@@ -371,6 +376,10 @@ class DjiDrone(
         }, { error ->
             Timber.e("Failed to rotate the gimbal (${error.errorCode()}): ${error.hint()}")
         })
+    }
+
+    override suspend fun reset() {
+        adjustDroneVelocityOneTime(0.0, 0.0, 0.0, null)
     }
 
     override fun destroy() {
