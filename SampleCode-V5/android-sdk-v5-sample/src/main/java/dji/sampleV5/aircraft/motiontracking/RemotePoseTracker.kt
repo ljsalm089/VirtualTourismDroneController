@@ -94,7 +94,7 @@ class RemotePoseTracker(
                     0.0,
                     0.0,
                     Math.toRadians(
-                        shortestAngle(
+                        - shortestAngle(
                             orientationOfBenchmarkMarkerInCompass,
                             currentCompassAngle
                         )
@@ -155,7 +155,7 @@ class RemotePoseTracker(
             val translation = lastPose!!.position.toDoubleArray()
             val rotation = DoubleArray(3)
             rotation[2] = Math.toRadians(
-                shortestAngle(
+                - shortestAngle(
                     orientationOfBenchmarkMarkerInCompass,
                     currentCompassAngle
                 )
