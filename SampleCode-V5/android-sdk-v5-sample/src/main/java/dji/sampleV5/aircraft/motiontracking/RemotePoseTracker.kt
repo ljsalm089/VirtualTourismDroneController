@@ -77,6 +77,7 @@ class RemotePoseTracker(
 
     private val tmpPose = Mat.eye(4, 4, CvType.CV_64F)
     private val newTmpPose = Mat.eye(4, 4, CvType.CV_64F)
+    private val emptyMat = Mat()
 
     override fun getPosition(): Vector3D {
         return getPose()[0]
@@ -108,9 +109,7 @@ class RemotePoseTracker(
             Timber.tag(TAG).d("the values of tmpPose:\n${tmpPose.dump()}")
 
             // convert the pose in marker based coordinate system into the one based on drone initial pose
-            // the computation right here is not correct, need to be fixed
-//            val newPose = tmpPose.matMul(relativePose)
-            Core.gemm(relativePose, tmpPose, 1.0, Mat(), 0.0, newTmpPose)
+            Core.gemm(relativePose, tmpPose, 1.0, emptyMat, 0.0, newTmpPose)
 
             newTmpPose.submat(0, 3, 0, 3).copyTo(tmpR)
             Calib3d.Rodrigues(tmpR, tmpRVec)
@@ -270,6 +269,7 @@ class RemotePoseTracker(
         tmpR.release()
         tmpPose.release()
         newTmpPose.release()
+        emptyMat.release()
     }
 
     private fun ObjectPose.isFresh(): Boolean {
