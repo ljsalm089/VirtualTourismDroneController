@@ -27,7 +27,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
-import java.util.Timer
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -321,15 +320,15 @@ class DjiDrone(
     override suspend fun adjustDroneVelocityOneTime(
         forwardBackward: Double,
         rightLeft: Double,
-        downwardUpward: Double,
+        upwardDownward: Double,
         targetYawAngle: Double?
     ) {
-        if (0.0 == forwardBackward && 0.0 == rightLeft && 0.0 == downwardUpward && null == targetYawAngle) {
+        if (0.0 == forwardBackward && 0.0 == rightLeft && 0.0 == upwardDownward && null == targetYawAngle) {
             return
         }
         Timber.d(
             "forward: ${forwardBackward.format(5)} right: ${rightLeft.format(5)} down: ${
-                downwardUpward.format(
+                upwardDownward.format(
                     5
                 )
             }"
@@ -350,7 +349,7 @@ class DjiDrone(
         param.pitch = clipVelocityForSafety(rightLeft)
 
         param.verticalControlMode = VerticalControlMode.VELOCITY
-        param.verticalThrottle = clipVelocityForSafety(downwardUpward)
+        param.verticalThrottle = clipVelocityForSafety(upwardDownward)
 
         Timber.d("Sending advanced stick param to the drone: ${param.toJson()}")
         VirtualStickManager.getInstance().sendVirtualStickAdvancedParam(param)

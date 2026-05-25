@@ -11,7 +11,7 @@ var USE_DRONE_CAMERA = true
 
 const val MAXIMUM_HORIZONTAL_VELOCITY = 0.2 // m/s
 
-const val ALLOWED_OFFSET = 0.05
+const val ALLOWED_OFFSET = 0.10
 
 
 // if use the mock control class to test the control data sent from the headset

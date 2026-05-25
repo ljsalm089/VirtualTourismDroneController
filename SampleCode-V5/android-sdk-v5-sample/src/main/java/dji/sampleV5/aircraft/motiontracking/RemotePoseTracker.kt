@@ -95,7 +95,7 @@ class RemotePoseTracker(
                     0.0,
                     0.0,
                     Math.toRadians(
-                        - shortestAngle(
+                        -shortestAngle(
                             orientationOfBenchmarkMarkerInCompass,
                             currentCompassAngle
                         )
@@ -115,17 +115,23 @@ class RemotePoseTracker(
             Calib3d.Rodrigues(tmpR, tmpRVec)
 
             // extract the translation from the new pose
+            val translation = newTmpPose.getTranslation()
             arrayOf(
                 Vector3D(
-                    newTmpPose.get(0, 3)[0].toFloat(),
-                    newTmpPose.get(1, 3)[0].toFloat(),
-                    newTmpPose.get(2, 3)[0].toFloat()
+                    translation.x,
+                    // INFO for OpenCV, the upward direction represents the z-axis, the forward direction represents the y-axis,
+                    //  but in this coordinate system, the forward direction is set as z-axis, and the upward direction is set as y-axis
+                    //  in order to make it match the coordinate system in unity as much as possible.
+                    //  (why as much as possible? because in Unity, downward directions represents y-axis,
+                    //  which makes it hard to understand from the perspective of the drone.)
+                    translation.z,
+                    translation.y
                 ),
                 Vector3D(
                     gimbalAttitude[0].toFloat(),
                     gimbalAttitude[1].toFloat(),
                     // INFO for OpenCV: the angle decreases when the X–Y plane rotates in the clockwise direction.
-                    // but the compass value increases when the drone in the clockwise direction (see from upward direction of the drone)
+                    //  but the compass value increases when the drone in the clockwise direction (see from upward direction of the drone)
                     - Math.toDegrees(tmpRVec.get(2, 0)[0]).toFloat()
                 )
             )
@@ -139,13 +145,11 @@ class RemotePoseTracker(
     override fun start() {
         state = TrackingState.Initializing
 
-        orientationOfBenchmarkMarkerInCompass = Double.NaN
-
         job?.cancel()
 
         job = scope.launch(ioDispatcher) {
-            // exit until get a valid remote orientation, remote position, and drone orientation
-            while (orientationOfBenchmarkMarkerInCompass.isNaN()) {
+            // exit until the mapping between benchmark marker and drone compass is built, and a fresh pose is gotten
+            while (orientationOfBenchmarkMarkerInCompass.isNaN() || lastPose?.isFresh() != true) {
                 // INFO haven't built the mapping between benchmark marker and drone compass
                 delay(30)
             }
@@ -186,6 +190,8 @@ class RemotePoseTracker(
             pose.release()
             tmpVector.release()
             tmpR.release()
+
+            state = TrackingState.Tracking
         }
     }
 
@@ -196,8 +202,6 @@ class RemotePoseTracker(
                 initialAngleInDegreeBetweenDroneAndBenchmarkMarker,
                 currentCompassAngle
             )
-
-            state = TrackingState.Tracking
         }
     }
 
@@ -274,5 +278,13 @@ class RemotePoseTracker(
 
     private fun ObjectPose.isFresh(): Boolean {
         return SystemClock.elapsedRealtime() - localTimestamp <= 500L
+    }
+
+    private fun Mat.getTranslation(): Vector3D {
+        return Vector3D(
+            newTmpPose.get(0, 3)[0].toFloat(),
+            newTmpPose.get(1, 3)[0].toFloat(),
+            newTmpPose.get(2, 3)[0].toFloat()
+        )
     }
 }
