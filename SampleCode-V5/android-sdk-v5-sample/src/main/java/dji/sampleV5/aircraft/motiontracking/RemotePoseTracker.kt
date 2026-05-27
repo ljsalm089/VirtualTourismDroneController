@@ -122,7 +122,7 @@ class RemotePoseTracker(
                     // INFO for OpenCV, the upward direction represents the z-axis, the forward direction represents the y-axis,
                     //  but in this coordinate system, the forward direction is set as z-axis, and the upward direction is set as y-axis
                     //  in order to make it match the coordinate system in unity as much as possible.
-                    //  (why as much as possible? because in Unity, downward directions represents y-axis,
+                    //  (why as much as possible? because in Unity, upward directions represents y-axis,
                     //  which makes it hard to understand from the perspective of the drone.)
                     translation.z,
                     translation.y
@@ -147,12 +147,15 @@ class RemotePoseTracker(
 
         job?.cancel()
 
+        val currentTimestamp = SystemClock.elapsedRealtime()
         job = scope.launch(ioDispatcher) {
             // exit until the mapping between benchmark marker and drone compass is built, and a fresh pose is gotten
-            while (orientationOfBenchmarkMarkerInCompass.isNaN() || lastPose?.isFresh() != true) {
+            // the received position might be a little bit delayed then the real position
+            while (orientationOfBenchmarkMarkerInCompass.isNaN() || null == lastPose || lastPose!!.localTimestamp < currentTimestamp + 1000L) {
                 // INFO haven't built the mapping between benchmark marker and drone compass
                 delay(30)
             }
+            Timber.d(TAG, "timestamp of pose for benchmark, remote: ${lastPose!!.timestamp}\tlocal: ${lastPose!!.localTimestamp}")
 
             // now the orientationOfBenchmarkMarkerInCompass is not NaN, based on this to build a relative pose
 

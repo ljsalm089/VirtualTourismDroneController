@@ -54,14 +54,14 @@ interface IDrone {
      * assign velocities, target attitude, target height to the drone
      * @param forwardBackward specify the velocity in the direction of forward and back ward, positive value means going forward, negative value means going backward
      * @param rightLeft specify the velocity in the direction of right and left, positive value means going right, negative value means going left
-     * @param downwardUpward specify the velocity in the direction of upward and downward, positive
+     * @param upwardDownward specify the velocity in the direction of upward and downward, positive
      * value means going down, negative value means going up
      * @param targetYawAngle specify the target attitude of the drone, null means no change
      */
     suspend fun adjustDroneVelocityOneTime(
         forwardBackward: Double = 0.0,
         rightLeft: Double = 0.0,
-        downwardUpward: Double = 0.0,
+        upwardDownward: Double = 0.0,
         targetYawAngle: Double? = null
     )
 
@@ -327,7 +327,7 @@ class DjiDrone(
             return
         }
         Timber.d(
-            "forward: ${forwardBackward.format(5)} right: ${rightLeft.format(5)} down: ${
+            "forward: ${forwardBackward.format(5)} right: ${rightLeft.format(5)} up: ${
                 upwardDownward.format(
                     5
                 )

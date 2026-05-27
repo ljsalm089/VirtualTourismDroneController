@@ -201,6 +201,7 @@ class VirtualDroneController(
         Timber.tag(TAG).i("From position $dronePos to target $targetPosition")
         Timber.tag(TAG).i("From attitude: ${droneAttitudeInDegrees.format()} to target: ${targetRotation.y.format()}")
 
+        // INFO while using the position computed by remote tracking system, the coordinate system is same as the Unity one.
         // only care about the x and z axes first
         var xGap = targetPosition.x - dronePos.x
         var zGap = targetPosition.z - dronePos.z
@@ -217,6 +218,7 @@ class VirtualDroneController(
         val xVelocity = xGap / intervalInMillis * 1000.0
         val yVelocity = yGap / intervalInMillis * 1000.0
 
+        // TODO ???? really?
         val headVelocity =
             -xVelocity * sin(droneAttitudeInRadians) + zVelocity * cos(droneAttitudeInRadians)
         val rightVelocity =
