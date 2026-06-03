@@ -209,6 +209,24 @@ class VirtualDroneController(
         // INFO in both Unity and the coordinate system of drone, upward represents y-axis
         var yGap = targetPosition.y - dronePos.y
 
+        // INFO currently, there are some delays in the computed position. In a simple process of
+        //  guiding the drone to a desired position basing on this position, the drone will
+        //  fluctuate around the target position and eventually become still.
+        //  -> | ----->
+        //  <---- | <-
+        //  -> | --->
+        //  <-- | <-
+        //  -> | ->
+        //  | <-
+
+        // INFO if one wants to calculate and accumulate the offset and apply it to the "old"
+        //  position to get a temporary "real-time" position before getting the latest position,
+        //  Besides the translation and rotation, the tracker must exposes the timestamp of the
+        //  position, so that one can test if a position is "old" or "latest" position.
+        //  currently, `RemotePoseTracker` hasn't been implemented this functionality yet, but it
+        //  is easy to do that. The tough part is how to temporarily compute the position offset
+        //  based on the "unreliable", "changing", and instant velocities.
+
         // offset in 0.10 meter is acceptable
         xGap = if (abs(xGap) > ALLOWED_OFFSET) xGap else 0f
         zGap = if (abs(zGap) > ALLOWED_OFFSET) zGap else 0f
