@@ -211,7 +211,7 @@ class VirtualDroneController(
 
         // INFO currently, there are some delays in the computed position. In a simple process of
         //  guiding the drone to a desired position basing on this position, the drone will
-        //  fluctuate around the target position and eventually become still.
+        //  fluctuate around the target position and eventually become steady.
         //  -> | ----->
         //  <---- | <-
         //  -> | --->
@@ -236,7 +236,6 @@ class VirtualDroneController(
         val xVelocity = xGap / intervalInMillis * 1000.0
         val yVelocity = yGap / intervalInMillis * 1000.0
 
-        // TODO ???? really?
         val headVelocity =
             -xVelocity * sin(droneAttitudeInRadians) + zVelocity * cos(droneAttitudeInRadians)
         val rightVelocity =
@@ -248,6 +247,11 @@ class VirtualDroneController(
             } else {
                 null
             }
+
+        // TODO while old implementation is to assign instant velocities in different directions
+        //  to the drone without guidance, limiting the velocity in each direction into a safe
+        //  range is reasonable. In the new implementation, it would be better to keep the same
+        //  motion direction but limit the whole velocity into the safe range.
 
         Timber.tag(TAG).i("Calculated velocities: F/B-> ${headVelocity.format()}\tR/L-> ${rightVelocity.format()}\tU/D-> ${yVelocity.format()}")
         drone.adjustDroneVelocityOneTime(
