@@ -43,7 +43,8 @@ private const val VIDEO_ROOM_PLUGIN = "janus.plugin.videoroom"
 
 private const val iceServerUrl = "stun:stun.l.google.com:1930";
 
-private const val wsServerProtocolAndHostPort = "ws://192.168.0.100:8188"
+// INFO please change the ip address below to the raspberry pi server
+private const val wsServerProtocolAndHostPort = "ws://192.168.0.134:8188"
 
 private const val needProxy = false
 
